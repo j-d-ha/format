@@ -22,10 +22,12 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 			return fmt.Errorf("[in format.Format] load config before grouping input files by formatter: %w", err)
 		}
 
+		logger.Debug("Loaded config", slog.String("path", DefaultConfigPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
+
 		files := cmd.Args().Slice()
 		logger.Info("Format called", slog.Any("files", files))
 
-		groups, err := groupFilesByFormatter(cfg, files)
+		groups, err := groupFilesByFormatter(logger, cfg, files)
 		if err != nil {
 			return fmt.Errorf("[in format.Format] group input files by formatter patterns before running commands: %w", err)
 		}
@@ -34,6 +36,8 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 			if len(group.files) == 0 {
 				continue
 			}
+
+			logger.Debug("Formatter group ready", slog.String("formatter", group.formatter.Name), slog.Int("fileCount", len(group.files)))
 
 			argv, err := expandFilesArgument(group.formatter.Command, group.files)
 			if err != nil {
@@ -66,7 +70,7 @@ type normalizedFile struct {
 
 // groupFilesByFormatter assigns files to formatters using global excludes,
 // formatter-level excludes, formatter patterns, and the configured match policy.
-func groupFilesByFormatter(cfg *Config, files []string) ([]formatterGroup, error) {
+func groupFilesByFormatter(logger *slog.Logger, cfg *Config, files []string) ([]formatterGroup, error) {
 	groups := make([]formatterGroup, len(cfg.Formatters))
 	for i, formatter := range cfg.Formatters {
 		groups[i].formatter = formatter
@@ -83,9 +87,11 @@ func groupFilesByFormatter(cfg *Config, files []string) ([]formatterGroup, error
 			return nil, fmt.Errorf("[in format.groupFilesByFormatter] evaluate global excludes for %q: %w", file, err)
 		}
 		if excluded {
+			logger.Debug("Skipping file due to global exclude", slog.String("input", normalized.input), slog.String("matchPath", normalized.rel))
 			continue
 		}
 
+		matchedFormatter := false
 		for i, formatter := range cfg.Formatters {
 			matched, err := matchesAny(formatter.Patterns, normalized.rel)
 			if err != nil {
@@ -100,13 +106,20 @@ func groupFilesByFormatter(cfg *Config, files []string) ([]formatterGroup, error
 				return nil, fmt.Errorf("[in format.groupFilesByFormatter] evaluate formatter %q excludes for %q: %w", formatter.Name, file, err)
 			}
 			if excluded {
+				logger.Debug("Skipping file due to formatter exclude", slog.String("formatter", formatter.Name), slog.String("input", normalized.input), slog.String("matchPath", normalized.rel))
 				continue
 			}
 
+			matchedFormatter = true
 			groups[i].files = append(groups[i].files, normalized.abs)
+			logger.Debug("Matched file to formatter", slog.String("formatter", formatter.Name), slog.String("input", normalized.input), slog.String("matchPath", normalized.rel), slog.String("executionPath", normalized.abs))
 			if cfg.MatchPolicy == "first" {
 				break
 			}
+		}
+
+		if !matchedFormatter {
+			logger.Debug("No formatter matched file", slog.String("input", normalized.input), slog.String("matchPath", normalized.rel), slog.String("executionPath", normalized.abs))
 		}
 	}
 
