@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"log"
 	"log/slog"
 	"os"
 	"time"
@@ -20,12 +19,13 @@ func main() {
 	}))
 
 	cmd := &cli.Command{
-		Name:   "boom",
-		Usage:  "make an explosive entrance",
+		Name:   "format",
+		Usage:  "Format source code",
 		Action: format.Format(logger),
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		log.Fatal(err)
+		logger.Error("Error encountered", slog.String("error", err.Error()))
+		os.Exit(1)
 	}
 }
