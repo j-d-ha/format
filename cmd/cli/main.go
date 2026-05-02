@@ -8,11 +8,11 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/j-d-ha/format/internal/format"
+	"github.com/j-d-ha/format/internal/app"
 )
 
 func main() {
-	loggerConfig := &format.LoggerConfig{Logger: format.NewLogger(os.Stderr)}
+	loggerConfig := &app.LoggerConfig{Logger: app.NewLogger(os.Stderr)}
 
 	logToFileFlag := &cli.BoolFlag{
 		Name:  "log-to-file",
@@ -24,7 +24,7 @@ func main() {
 	}
 
 	cmd := &cli.Command{
-		Name:  "format",
+		Name:  "app",
 		Usage: "Format source code",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -41,9 +41,9 @@ func main() {
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-			configuredLogger, err := format.ConfigureLogger(cmd)
+			configuredLogger, err := app.ConfigureLogger(cmd)
 			if err != nil {
-				return ctx, fmt.Errorf("[in main.main] configure logger before running format command: %w", err)
+				return ctx, fmt.Errorf("[in main.main] configure logger before running app command: %w", err)
 			}
 
 			loggerConfig = configuredLogger
@@ -51,12 +51,12 @@ func main() {
 		},
 		After: func(_ context.Context, _ *cli.Command) error {
 			if err := loggerConfig.Close(); err != nil {
-				return fmt.Errorf("[in main.main] close logger after running format command: %w", err)
+				return fmt.Errorf("[in main.main] close logger after running app command: %w", err)
 			}
 			return nil
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
-			return format.Format(loggerConfig.Logger)(ctx, cmd)
+			return app.Format(loggerConfig.Logger)(ctx, cmd)
 		},
 	}
 

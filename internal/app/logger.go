@@ -1,4 +1,4 @@
-package format
+package app
 
 import (
 	"fmt"
@@ -15,9 +15,9 @@ import (
 
 const (
 	// DefaultLogDir is the project-local directory used for generated log files.
-	DefaultLogDir = ".format/logs"
+	DefaultLogDir = ".app/logs"
 
-	defaultLogFilePrefix = "format"
+	defaultLogFilePrefix = "app"
 )
 
 // LoggerConfig contains the logger and optional file handle configured from CLI
@@ -51,7 +51,7 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 
 	file, err := openLogFile(logPath)
 	if err != nil {
-		return nil, fmt.Errorf("[in format.ConfigureLogger] open log file so command logs can be persisted: %w", err)
+		return nil, fmt.Errorf("[in app.ConfigureLogger] open log file so command logs can be persisted: %w", err)
 	}
 
 	return &LoggerConfig{
@@ -76,7 +76,7 @@ func (cfg *LoggerConfig) Close() error {
 	}
 
 	if err := cfg.File.Close(); err != nil {
-		return fmt.Errorf("[in format.LoggerConfig.Close] close log file after running format command: %w", err)
+		return fmt.Errorf("[in app.LoggerConfig.Close] close log file after running app command: %w", err)
 	}
 
 	return nil
@@ -109,12 +109,12 @@ func sanitizeLogFilePart(part string) string {
 
 func openLogFile(path string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return nil, fmt.Errorf("[in format.openLogFile] create log file directory for %q so logs can be written: %w", path, err)
+		return nil, fmt.Errorf("[in app.openLogFile] create log file directory for %q so logs can be written: %w", path, err)
 	}
 
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
-		return nil, fmt.Errorf("[in format.openLogFile] open log file %q for appending command logs: %w", path, err)
+		return nil, fmt.Errorf("[in app.openLogFile] open log file %q for appending command logs: %w", path, err)
 	}
 
 	return file, nil

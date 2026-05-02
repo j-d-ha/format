@@ -1,4 +1,4 @@
-package format
+package app
 
 import (
 	"encoding/json"
@@ -12,17 +12,17 @@ import (
 
 // DefaultConfigPath is the config file path used when no explicit path is
 // provided by the caller.
-const DefaultConfigPath = "format.json"
+const DefaultConfigPath = "app.json"
 
-// ErrInvalidConfig is returned when a format configuration is structurally
+// ErrInvalidConfig is returned when a app configuration is structurally
 // valid JSON but missing required formatter settings.
-var ErrInvalidConfig = errors.New("invalid format config")
+var ErrInvalidConfig = errors.New("invalid app config")
 
-// configValidator validates decoded format configuration values using the
+// configValidator validates decoded app configuration values using the
 // validation tags on the configuration structs.
 var configValidator = validator.New(validator.WithRequiredStructEnabled())
 
-// Config describes the top-level format.json configuration file.
+// Config describes the top-level app.json configuration file.
 type Config struct {
 	// Version is the configuration schema version.
 	Version int `json:"version" validate:"gt=0"`
@@ -57,44 +57,44 @@ type Formatter struct {
 	Command []string `json:"command" validate:"required,min=1,dive,required"`
 }
 
-// LoadDefaultConfig loads the default format configuration from format.json.
+// LoadDefaultConfig loads the default app configuration from app.json.
 func LoadDefaultConfig() (*Config, error) {
 	cfg, err := LoadConfig(DefaultConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("[in format.LoadDefaultConfig] load default config so the format command can start: %w", err)
+		return nil, fmt.Errorf("[in app.LoadDefaultConfig] load default config so the app command can start: %w", err)
 	}
 
 	return cfg, nil
 }
 
-// LoadConfig loads and validates a format configuration from path.
+// LoadConfig loads and validates a app configuration from path.
 func LoadConfig(path string) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("[in format.LoadConfig] open config %q so formatter settings can be read: %w", path, err)
+		return nil, fmt.Errorf("[in app.LoadConfig] open config %q so formatter settings can be read: %w", path, err)
 	}
 	defer file.Close()
 
 	cfg, err := DecodeConfig(file)
 	if err != nil {
-		return nil, fmt.Errorf("[in format.LoadConfig] decode config %q so formatter settings can be used: %w", path, err)
+		return nil, fmt.Errorf("[in app.LoadConfig] decode config %q so formatter settings can be used: %w", path, err)
 	}
 
 	return cfg, nil
 }
 
-// DecodeConfig decodes and validates a format configuration from r.
+// DecodeConfig decodes and validates a app configuration from r.
 func DecodeConfig(r io.Reader) (*Config, error) {
 	var cfg Config
 
 	decoder := json.NewDecoder(r)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("[in format.DecodeConfig] decode JSON config so formatter settings can be loaded: %w", err)
+		return nil, fmt.Errorf("[in app.DecodeConfig] decode JSON config so formatter settings can be loaded: %w", err)
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("[in format.DecodeConfig] validate config so formatter settings are complete: %w", err)
+		return nil, fmt.Errorf("[in app.DecodeConfig] validate config so formatter settings are complete: %w", err)
 	}
 
 	return &cfg, nil
@@ -103,7 +103,7 @@ func DecodeConfig(r io.Reader) (*Config, error) {
 // Validate reports whether cfg contains the fields required to run formatters.
 func (cfg Config) Validate() error {
 	if err := configValidator.Struct(cfg); err != nil {
-		return fmt.Errorf("[in format.Validate] reject config because required formatter settings are missing or invalid: %w", errors.Join(ErrInvalidConfig, err))
+		return fmt.Errorf("[in app.Validate] reject config because required formatter settings are missing or invalid: %w", errors.Join(ErrInvalidConfig, err))
 	}
 
 	return nil
