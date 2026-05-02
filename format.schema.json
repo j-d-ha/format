@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://example.com/format.schema.json",
+  "$id": "https://raw.githubusercontent.com/j-d-ha/format/main/format.schema.json",
   "title": "format configuration",
   "description": "Configuration file for the format CLI.",
   "type": "object",

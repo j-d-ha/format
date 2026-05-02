@@ -1,4 +1,5 @@
 {
+  "$schema": "./format.schema.json",
   "version": 1,
   "matchPolicy": "all",
   "exclude": [
@@ -26,26 +27,48 @@
         "package-lock.json",
         "pnpm-lock.yaml"
       ],
-      "command": ["prettier", "--write", "$files"]
+      "command": [
+        "prettier",
+        "--write",
+        "$files"
+      ]
     },
     {
       "name": "gofmt",
-      "patterns": ["**/*.go"],
-      "command": ["gofmt", "-w", "$files"]
+      "patterns": [
+        "**/*.go"
+      ],
+      "command": [
+        "gofmt",
+        "-w",
+        "$files"
+      ]
     },
     {
       "name": "dotnet-format",
-      "patterns": ["**/*.cs"],
+      "patterns": [
+        "**/*.cs"
+      ],
       "exclude": [
         "**/*.g.cs",
         "**/Generated/**/*.cs"
       ],
-      "command": ["dotnet", "format", "--include", "$files"]
+      "command": [
+        "dotnet",
+        "format",
+        "--include",
+        "$files"
+      ]
     },
     {
       "name": "rustfmt",
-      "patterns": ["**/*.rs"],
-      "command": ["rustfmt", "$files"]
+      "patterns": [
+        "**/*.rs"
+      ],
+      "command": [
+        "rustfmt",
+        "$files"
+      ]
     },
     {
       "name": "clang-format",
@@ -55,7 +78,11 @@
         "**/*.cpp",
         "**/*.hpp"
       ],
-      "command": ["clang-format", "-i", "$files"]
+      "command": [
+        "clang-format",
+        "-i",
+        "$files"
+      ]
     }
   ]
 }

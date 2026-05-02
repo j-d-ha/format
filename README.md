@@ -91,6 +91,29 @@ Each formatter supports:
 
 The `$files` placeholder is expanded to the files assigned to that formatter.
 
+### JSON Schema
+
+This repository includes `format.schema.json` for editor completion and validation of `format.json` files.
+
+To enable schema support in a config file, add a `$schema` property that points to the schema published from this repository:
+
+```json
+{
+  "$schema": "https://raw.githubusercontent.com/j-d-ha/format/main/format.schema.json",
+  "version": 1,
+  "matchPolicy": "all",
+  "formatters": [
+    {
+      "name": "gofmt",
+      "patterns": ["**/*.go"],
+      "command": ["gofmt", "-w", "$files"]
+    }
+  ]
+}
+```
+
+For local development of this repository, you can instead use a relative path such as `"$schema": "./format.schema.json"`.
+
 ## Examples
 
 Format Go and Markdown files using the default `format.json`:
