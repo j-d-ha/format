@@ -6,13 +6,28 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 
 	"github.com/go-playground/validator/v10"
 )
 
-// DefaultConfigPath is the config file path used when no explicit path is
-// provided by the caller.
+// DefaultConfigPath is the project-local config file path used when no
+// explicit path is provided by the caller.
 const DefaultConfigPath = "format.json"
+
+// ConfigFlagName is the CLI flag name used to provide an explicit config path.
+const ConfigFlagName = "config"
+
+// GlobalConfigPath returns the per-user config file path searched after the
+// project-local config path when no explicit config path is provided.
+func GlobalConfigPath() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", fmt.Errorf("[in app.GlobalConfigPath] locate user config directory so global config can be searched: %w", err)
+	}
+
+	return filepath.Join(configDir, "format", DefaultConfigPath), nil
+}
 
 // ErrInvalidConfig is returned when a format configuration is structurally
 // valid JSON but missing required formatter settings.
@@ -59,12 +74,50 @@ type Formatter struct {
 
 // LoadDefaultConfig loads the default format configuration from format.json.
 func LoadDefaultConfig() (*Config, error) {
-	cfg, err := LoadConfig(DefaultConfigPath)
+	cfg, _, err := LoadConfigForPath("")
 	if err != nil {
 		return nil, fmt.Errorf("[in app.LoadDefaultConfig] load default config so the app command can start: %w", err)
 	}
 
 	return cfg, nil
+}
+
+// LoadConfigForPath loads and validates the explicit config path when provided.
+// Without an explicit path, it searches the project-local config path first and
+// then the per-user global config path.
+func LoadConfigForPath(path string) (*Config, string, error) {
+	if path != "" {
+		cfg, err := LoadConfig(path)
+		if err != nil {
+			return nil, "", fmt.Errorf("[in app.LoadConfigForPath] load explicit config %q because caller requested it: %w", path, err)
+		}
+
+		return cfg, path, nil
+	}
+
+	paths := []string{DefaultConfigPath}
+	globalPath, err := GlobalConfigPath()
+	if err != nil {
+		return nil, "", fmt.Errorf("[in app.LoadConfigForPath] resolve global config path after project config was not explicitly requested: %w", err)
+	}
+	paths = append(paths, globalPath)
+
+	var loadErrors []error
+	for _, candidate := range paths {
+		cfg, err := LoadConfig(candidate)
+		if err == nil {
+			return cfg, candidate, nil
+		}
+
+		if errors.Is(err, os.ErrNotExist) {
+			loadErrors = append(loadErrors, err)
+			continue
+		}
+
+		return nil, "", fmt.Errorf("[in app.LoadConfigForPath] load config %q selected by default search order: %w", candidate, err)
+	}
+
+	return nil, "", fmt.Errorf("[in app.LoadConfigForPath] find config in default search paths %v: %w", paths, errors.Join(loadErrors...))
 }
 
 // LoadConfig loads and validates a format configuration from path.

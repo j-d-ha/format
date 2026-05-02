@@ -19,12 +19,12 @@ import (
 // patterns and runs each matching formatter with a $files expansion.
 func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 	return func(ctx context.Context, cmd *cli.Command) error {
-		cfg, err := LoadDefaultConfig()
+		cfg, configPath, err := LoadConfigForPath(cmd.String(ConfigFlagName))
 		if err != nil {
 			return fmt.Errorf("[in app.Format] load config before grouping input files by formatter: %w", err)
 		}
 
-		logger.Debug("Loaded config", slog.String("path", DefaultConfigPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
+		logger.Debug("Loaded config", slog.String("path", configPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
 
 		files, err := validateFileArguments(cmd.Args().Slice())
 		if err != nil {

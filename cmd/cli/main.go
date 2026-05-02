@@ -28,6 +28,11 @@ func main() {
 		Usage: "Format source code",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
+				Name:    app.ConfigFlagName,
+				Aliases: []string{"c"},
+				Usage:   "path to a config file; defaults to ./format.json, then the user config directory",
+			},
+			&cli.StringFlag{
 				Name:  "log-level",
 				Usage: "minimum log level to write (debug, info, warn, error)",
 				Value: "warn",
@@ -60,7 +65,9 @@ func main() {
 			}
 			return nil
 		},
-		Action: app.Format(loggerConfig.Logger),
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return app.Format(loggerConfig.Logger)(ctx, cmd)
+		},
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
