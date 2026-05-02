@@ -1,0 +1,7 @@
+version: '3'
+
+tasks:
+  install:local:
+    desc: Install the format binary to the local Go bin directory
+    cmds:
+      - go install ./cmd/format
