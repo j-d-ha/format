@@ -1,6 +1,8 @@
 package app
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -15,9 +17,9 @@ import (
 
 const (
 	// DefaultLogDir is the project-local directory used for generated log files.
-	DefaultLogDir = ".app/logs"
+	DefaultLogDir = ".format/logs"
 
-	defaultLogFilePrefix = "app"
+	defaultLogFilePrefix = "format"
 )
 
 // LoggerConfig contains the logger and optional file handle configured from CLI
@@ -27,12 +29,9 @@ type LoggerConfig struct {
 	File   *os.File
 }
 
-// NewLogger creates a command logger that writes tinted logs to w.
+// NewLogger creates a command logger that writes colored tinted logs to w.
 func NewLogger(w io.Writer) *slog.Logger {
-	return slog.New(tint.NewHandler(w, &tint.Options{
-		Level:      slog.LevelDebug,
-		TimeFormat: time.DateTime,
-	}))
+	return slog.New(newConsoleHandler(w))
 }
 
 // ConfigureLogger creates a logger from the log-related CLI flags.
@@ -55,8 +54,11 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 	}
 
 	return &LoggerConfig{
-		Logger: NewLogger(io.MultiWriter(os.Stderr, file)),
-		File:   file,
+		Logger: slog.New(multiHandler{
+			newConsoleHandler(os.Stderr),
+			newFileHandler(file),
+		}),
+		File: file,
 	}, nil
 }
 
@@ -76,7 +78,7 @@ func (cfg *LoggerConfig) Close() error {
 	}
 
 	if err := cfg.File.Close(); err != nil {
-		return fmt.Errorf("[in app.LoggerConfig.Close] close log file after running app command: %w", err)
+		return fmt.Errorf("[in app.LoggerConfig.Close] close log file after running format command: %w", err)
 	}
 
 	return nil
@@ -105,6 +107,74 @@ func sanitizeLogFilePart(part string) string {
 	}
 
 	return builder.String()
+}
+
+func newConsoleHandler(w io.Writer) slog.Handler {
+	return tint.NewHandler(w, &tint.Options{
+		Level:      slog.LevelDebug,
+		TimeFormat: time.DateTime,
+	})
+}
+
+func newFileHandler(w io.Writer) slog.Handler {
+	return tint.NewHandler(w, &tint.Options{
+		Level:      slog.LevelDebug,
+		TimeFormat: time.DateTime,
+		NoColor:    true,
+	})
+}
+
+// multiHandler fans log records out to multiple slog handlers.
+type multiHandler []slog.Handler
+
+// Enabled reports whether at least one wrapped handler accepts records at level.
+func (h multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
+	for _, handler := range h {
+		if handler.Enabled(ctx, level) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// Handle writes record to every wrapped handler that accepts its level.
+func (h multiHandler) Handle(ctx context.Context, record slog.Record) error {
+	var errs []error
+	for _, handler := range h {
+		if !handler.Enabled(ctx, record.Level) {
+			continue
+		}
+		if err := handler.Handle(ctx, record.Clone()); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("[in app.multiHandler.Handle] write log record to configured handlers: %w", errors.Join(errs...))
+	}
+
+	return nil
+}
+
+// WithAttrs returns a fanout handler with attrs applied to every wrapped handler.
+func (h multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	handlers := make(multiHandler, 0, len(h))
+	for _, handler := range h {
+		handlers = append(handlers, handler.WithAttrs(attrs))
+	}
+
+	return handlers
+}
+
+// WithGroup returns a fanout handler with group applied to every wrapped handler.
+func (h multiHandler) WithGroup(name string) slog.Handler {
+	handlers := make(multiHandler, 0, len(h))
+	for _, handler := range h {
+		handlers = append(handlers, handler.WithGroup(name))
+	}
+
+	return handlers
 }
 
 func openLogFile(path string) (*os.File, error) {
