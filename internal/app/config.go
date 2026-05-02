@@ -12,17 +12,17 @@ import (
 
 // DefaultConfigPath is the config file path used when no explicit path is
 // provided by the caller.
-const DefaultConfigPath = "app.json"
+const DefaultConfigPath = "format.json"
 
-// ErrInvalidConfig is returned when a app configuration is structurally
+// ErrInvalidConfig is returned when a format configuration is structurally
 // valid JSON but missing required formatter settings.
-var ErrInvalidConfig = errors.New("invalid app config")
+var ErrInvalidConfig = errors.New("invalid format config")
 
-// configValidator validates decoded app configuration values using the
+// configValidator validates decoded format configuration values using the
 // validation tags on the configuration structs.
 var configValidator = validator.New(validator.WithRequiredStructEnabled())
 
-// Config describes the top-level app.json configuration file.
+// Config describes the top-level format.json configuration file.
 type Config struct {
 	// Version is the configuration schema version.
 	Version int `json:"version" validate:"gt=0"`
@@ -57,7 +57,7 @@ type Formatter struct {
 	Command []string `json:"command" validate:"required,min=1,dive,required"`
 }
 
-// LoadDefaultConfig loads the default app configuration from app.json.
+// LoadDefaultConfig loads the default format configuration from format.json.
 func LoadDefaultConfig() (*Config, error) {
 	cfg, err := LoadConfig(DefaultConfigPath)
 	if err != nil {
@@ -67,7 +67,7 @@ func LoadDefaultConfig() (*Config, error) {
 	return cfg, nil
 }
 
-// LoadConfig loads and validates a app configuration from path.
+// LoadConfig loads and validates a format configuration from path.
 func LoadConfig(path string) (*Config, error) {
 	file, err := os.Open(path)
 	if err != nil {
@@ -83,7 +83,7 @@ func LoadConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
-// DecodeConfig decodes and validates a app configuration from r.
+// DecodeConfig decodes and validates a format configuration from r.
 func DecodeConfig(r io.Reader) (*Config, error) {
 	var cfg Config
 

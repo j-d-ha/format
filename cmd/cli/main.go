@@ -24,9 +24,14 @@ func main() {
 	}
 
 	cmd := &cli.Command{
-		Name:  "app",
+		Name:  "format",
 		Usage: "Format source code",
 		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:  "log-level",
+				Usage: "minimum log level to write (debug, info, warn, error)",
+				Value: "warn",
+			},
 			&cli.StringFlag{
 				Name:  "log-session-id",
 				Usage: "session identifier to include in generated log file names",
@@ -43,7 +48,7 @@ func main() {
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			configuredLogger, err := app.ConfigureLogger(cmd)
 			if err != nil {
-				return ctx, fmt.Errorf("[in main.main] configure logger before running app command: %w", err)
+				return ctx, fmt.Errorf("[in main.main] configure logger before running format command: %w", err)
 			}
 
 			loggerConfig = configuredLogger
@@ -51,7 +56,7 @@ func main() {
 		},
 		After: func(_ context.Context, _ *cli.Command) error {
 			if err := loggerConfig.Close(); err != nil {
-				return fmt.Errorf("[in main.main] close logger after running app command: %w", err)
+				return fmt.Errorf("[in main.main] close logger after running format command: %w", err)
 			}
 			return nil
 		},

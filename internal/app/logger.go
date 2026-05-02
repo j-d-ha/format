@@ -31,11 +31,22 @@ type LoggerConfig struct {
 
 // NewLogger creates a command logger that writes colored tinted logs to w.
 func NewLogger(w io.Writer) *slog.Logger {
-	return slog.New(newConsoleHandler(w))
+	return NewLoggerWithLevel(w, slog.LevelWarn)
+}
+
+// NewLoggerWithLevel creates a command logger that writes colored tinted logs to
+// w at level and above.
+func NewLoggerWithLevel(w io.Writer, level slog.Level) *slog.Logger {
+	return slog.New(newConsoleHandler(w, level))
 }
 
 // ConfigureLogger creates a logger from the log-related CLI flags.
 func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
+	level, err := ParseLogLevel(cmd.String("log-level"))
+	if err != nil {
+		return nil, fmt.Errorf("[in app.ConfigureLogger] parse log level so command logs can be filtered: %w", err)
+	}
+
 	logPath := ""
 	switch {
 	case cmd.Bool("log-to-file"):
@@ -45,7 +56,7 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 	}
 
 	if logPath == "" {
-		return &LoggerConfig{Logger: NewLogger(os.Stderr)}, nil
+		return &LoggerConfig{Logger: NewLoggerWithLevel(os.Stderr, level)}, nil
 	}
 
 	file, err := openLogFile(logPath)
@@ -55,8 +66,8 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 
 	return &LoggerConfig{
 		Logger: slog.New(multiHandler{
-			newConsoleHandler(os.Stderr),
-			newFileHandler(file),
+			newConsoleHandler(os.Stderr, level),
+			newFileHandler(file, level),
 		}),
 		File: file,
 	}, nil
@@ -109,16 +120,32 @@ func sanitizeLogFilePart(part string) string {
 	return builder.String()
 }
 
-func newConsoleHandler(w io.Writer) slog.Handler {
+// ParseLogLevel converts a CLI log level string into an slog level.
+func ParseLogLevel(raw string) (slog.Level, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "", "warn", "warning":
+		return slog.LevelWarn, nil
+	case "debug":
+		return slog.LevelDebug, nil
+	case "info":
+		return slog.LevelInfo, nil
+	case "error":
+		return slog.LevelError, nil
+	default:
+		return slog.LevelWarn, fmt.Errorf("unsupported log level %q; expected debug, info, warn, or error", raw)
+	}
+}
+
+func newConsoleHandler(w io.Writer, level slog.Level) slog.Handler {
 	return tint.NewHandler(w, &tint.Options{
-		Level:      slog.LevelDebug,
+		Level:      level,
 		TimeFormat: time.DateTime,
 	})
 }
 
-func newFileHandler(w io.Writer) slog.Handler {
+func newFileHandler(w io.Writer, level slog.Level) slog.Handler {
 	return tint.NewHandler(w, &tint.Options{
-		Level:      slog.LevelDebug,
+		Level:      level,
 		TimeFormat: time.DateTime,
 		NoColor:    true,
 	})
