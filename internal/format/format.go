@@ -1,8 +1,10 @@
 package format
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -24,7 +26,10 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 
 		logger.Debug("Loaded config", slog.String("path", DefaultConfigPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
 
-		files := cmd.Args().Slice()
+		files, err := validateFileArguments(cmd.Args().Slice())
+		if err != nil {
+			return fmt.Errorf("[in format.Format] validate input arguments before grouping files by formatter: %w", err)
+		}
 		logger.Info("Format called", slog.Any("files", files))
 
 		groups, err := groupFilesByFormatter(logger, cfg, files)
@@ -45,13 +50,42 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 			}
 
 			logger.Info("Running formatter", slog.String("formatter", group.formatter.Name), slog.Any("argv", argv))
-			if err := runFormatter(ctx, argv); err != nil {
+			if err := runFormatter(ctx, logger, group.formatter.Name, argv); err != nil {
 				return fmt.Errorf("[in format.Format] run formatter %q on matched files: %w", group.formatter.Name, err)
 			}
 		}
 
 		return nil
 	}
+}
+
+// validateFileArguments ensures every CLI argument identifies an existing file
+// using either an absolute or relative path.
+func validateFileArguments(files []string) ([]string, error) {
+	validated := make([]string, 0, len(files))
+
+	for _, file := range files {
+		if file == "" {
+			return nil, fmt.Errorf("[in format.validateFileArguments] reject empty file argument because it is not a valid file path")
+		}
+
+		normalized, err := normalizeUserPath(file)
+		if err != nil {
+			return nil, fmt.Errorf("[in format.validateFileArguments] normalize input file %q before checking it exists: %w", file, err)
+		}
+
+		info, err := os.Stat(normalized.abs)
+		if err != nil {
+			return nil, fmt.Errorf("[in format.validateFileArguments] stat input file %q to verify it is a valid path: %w", file, err)
+		}
+		if info.IsDir() {
+			return nil, fmt.Errorf("[in format.validateFileArguments] reject input path %q because it is a directory, not a file", file)
+		}
+
+		validated = append(validated, file)
+	}
+
+	return validated, nil
 }
 
 // formatterGroup contains the files that matched a single formatter.
@@ -166,22 +200,38 @@ func expandFilesArgument(command []string, files []string) ([]string, error) {
 }
 
 // runFormatter executes a formatter command, inheriting standard output and
-// standard error so formatter output is visible to the caller.
-func runFormatter(ctx context.Context, argv []string) error {
+// standard error so formatter output is visible to the caller while also logging
+// captured output at debug level.
+func runFormatter(ctx context.Context, logger *slog.Logger, formatterName string, argv []string) error {
 	if len(argv) == 0 {
 		return fmt.Errorf("[in format.runFormatter] reject empty formatter command because no executable was configured")
 	}
 
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+
 	command := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	command.Stdout = os.Stdout
-	command.Stderr = os.Stderr
+	command.Stdout = io.MultiWriter(os.Stdout, &stdout)
+	command.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	command.Stdin = os.Stdin
 
 	if err := command.Run(); err != nil {
+		logFormatterOutput(logger, formatterName, stdout.String(), stderr.String())
 		return fmt.Errorf("[in format.runFormatter] execute formatter command so matched files are formatted: %w", err)
 	}
 
+	logFormatterOutput(logger, formatterName, stdout.String(), stderr.String())
 	return nil
+}
+
+// logFormatterOutput writes captured formatter output to the debug log.
+func logFormatterOutput(logger *slog.Logger, formatterName string, stdout string, stderr string) {
+	if stdout != "" {
+		logger.Debug("Formatter stdout", slog.String("formatter", formatterName), slog.String("stdout", stdout))
+	}
+	if stderr != "" {
+		logger.Debug("Formatter stderr", slog.String("formatter", formatterName), slog.String("stderr", stderr))
+	}
 }
 
 // normalizeUserPath converts a user-provided file argument into an absolute
