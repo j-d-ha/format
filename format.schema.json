@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/format.schema.json",
+  "title": "format configuration",
+  "description": "Configuration file for the format CLI.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "formatters"],
+  "properties": {
+    "version": {
+      "type": "integer",
+      "description": "Configuration schema version.",
+      "minimum": 1
+    },
+    "matchPolicy": {
+      "type": "string",
+      "description": "Controls how formatter matches are applied.",
+      "enum": ["all", "first"],
+      "default": "all"
+    },
+    "exclude": {
+      "$ref": "#/$defs/globPatterns",
+      "description": "Global glob patterns that are ignored before formatter-specific matching."
+    },
+    "formatters": {
+      "type": "array",
+      "description": "Ordered formatter definitions.",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/formatter"
+      }
+    }
+  },
+  "$defs": {
+    "globPatterns": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "default": []
+    },
+    "formatter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "patterns", "command"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable formatter identifier.",
+          "minLength": 1
+        },
+        "patterns": {
+          "$ref": "#/$defs/nonEmptyGlobPatterns",
+          "description": "Glob patterns matched against candidate file paths."
+        },
+        "exclude": {
+          "$ref": "#/$defs/globPatterns",
+          "description": "Formatter-specific glob patterns to ignore."
+        },
+        "command": {
+          "type": "array",
+          "description": "Executable and arguments used to invoke the formatter. Include $files where the assigned files should be expanded.",
+          "minItems": 1,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contains": {
+            "const": "$files"
+          }
+        }
+      }
+    },
+    "nonEmptyGlobPatterns": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/globPatterns"
+        },
+        {
+          "minItems": 1
+        }
+      ]
+    }
+  }
+}
