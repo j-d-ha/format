@@ -1,8 +1,6 @@
 package app
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -56,7 +54,7 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 	}
 
 	if logPath == "" {
-		return &LoggerConfig{Logger: NewLoggerWithLevel(os.Stderr, level)}, nil
+		return &LoggerConfig{Logger: NewLoggerWithLevel(os.Stdout, level)}, nil
 	}
 
 	file, err := openLogFile(logPath)
@@ -65,11 +63,8 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 	}
 
 	return &LoggerConfig{
-		Logger: slog.New(multiHandler{
-			newConsoleHandler(os.Stderr, level),
-			newFileHandler(file, level),
-		}),
-		File: file,
+		Logger: slog.New(newFileHandler(file, level)),
+		File:   file,
 	}, nil
 }
 
@@ -149,59 +144,6 @@ func newFileHandler(w io.Writer, level slog.Level) slog.Handler {
 		TimeFormat: time.DateTime,
 		NoColor:    true,
 	})
-}
-
-// multiHandler fans log records out to multiple slog handlers.
-type multiHandler []slog.Handler
-
-// Enabled reports whether at least one wrapped handler accepts records at level.
-func (h multiHandler) Enabled(ctx context.Context, level slog.Level) bool {
-	for _, handler := range h {
-		if handler.Enabled(ctx, level) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// Handle writes record to every wrapped handler that accepts its level.
-func (h multiHandler) Handle(ctx context.Context, record slog.Record) error {
-	var errs []error
-	for _, handler := range h {
-		if !handler.Enabled(ctx, record.Level) {
-			continue
-		}
-		if err := handler.Handle(ctx, record.Clone()); err != nil {
-			errs = append(errs, err)
-		}
-	}
-
-	if len(errs) > 0 {
-		return fmt.Errorf("[in app.multiHandler.Handle] write log record to configured handlers: %w", errors.Join(errs...))
-	}
-
-	return nil
-}
-
-// WithAttrs returns a fanout handler with attrs applied to every wrapped handler.
-func (h multiHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
-	handlers := make(multiHandler, 0, len(h))
-	for _, handler := range h {
-		handlers = append(handlers, handler.WithAttrs(attrs))
-	}
-
-	return handlers
-}
-
-// WithGroup returns a fanout handler with group applied to every wrapped handler.
-func (h multiHandler) WithGroup(name string) slog.Handler {
-	handlers := make(multiHandler, 0, len(h))
-	for _, handler := range h {
-		handlers = append(handlers, handler.WithGroup(name))
-	}
-
-	return handlers
 }
 
 func openLogFile(path string) (*os.File, error) {

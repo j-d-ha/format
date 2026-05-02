@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	loggerConfig := &app.LoggerConfig{Logger: app.NewLogger(os.Stderr)}
+	loggerConfig := &app.LoggerConfig{Logger: app.NewLogger(os.Stdout)}
 
 	logToFileFlag := &cli.BoolFlag{
 		Name:  "log-to-file",
@@ -60,9 +60,7 @@ func main() {
 			}
 			return nil
 		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			return app.Format(loggerConfig.Logger)(ctx, cmd)
-		},
+		Action: app.Format(loggerConfig.Logger),
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
