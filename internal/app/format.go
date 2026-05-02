@@ -26,10 +26,7 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 
 		logger.Debug("Loaded config", slog.String("path", configPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
 
-		files, err := validateFileArguments(cmd.Args().Slice())
-		if err != nil {
-			return fmt.Errorf("[in app.Format] validate input arguments before grouping files by formatter: %w", err)
-		}
+		files := validateFileArguments(logger, cmd.Args().Slice())
 		logger.Info("Format called", slog.Any("files", files))
 
 		groups, err := groupFilesByFormatter(logger, cfg, files)
@@ -59,33 +56,37 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 	}
 }
 
-// validateFileArguments ensures every CLI argument identifies an existing file
-// using either an absolute or relative path.
-func validateFileArguments(files []string) ([]string, error) {
+// validateFileArguments returns only CLI arguments that identify existing files
+// using either absolute or relative paths, warning and skipping invalid inputs.
+func validateFileArguments(logger *slog.Logger, files []string) []string {
 	validated := make([]string, 0, len(files))
 
 	for _, file := range files {
 		if file == "" {
-			return nil, fmt.Errorf("[in app.validateFileArguments] reject empty file argument because it is not a valid file path")
+			logger.Warn("Skipping empty file argument because it is not a valid file path")
+			continue
 		}
 
 		normalized, err := normalizeUserPath(file)
 		if err != nil {
-			return nil, fmt.Errorf("[in app.validateFileArguments] normalize input file %q before checking it exists: %w", file, err)
+			logger.Warn("Skipping file because its path could not be normalized", slog.String("input", file), slog.Any("error", err))
+			continue
 		}
 
 		info, err := os.Stat(normalized.abs)
 		if err != nil {
-			return nil, fmt.Errorf("[in app.validateFileArguments] stat input file %q to verify it is a valid path: %w", file, err)
+			logger.Warn("Skipping file because it is not a valid path", slog.String("input", file), slog.String("path", normalized.abs), slog.Any("error", err))
+			continue
 		}
 		if info.IsDir() {
-			return nil, fmt.Errorf("[in app.validateFileArguments] reject input path %q because it is a directory, not a file", file)
+			logger.Warn("Skipping input path because it is a directory, not a file", slog.String("input", file), slog.String("path", normalized.abs))
+			continue
 		}
 
 		validated = append(validated, file)
 	}
 
-	return validated, nil
+	return validated
 }
 
 // formatterGroup contains the files that matched a single formatter.
