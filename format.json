@@ -45,7 +45,7 @@
     {
       "name": "rustfmt",
       "patterns": ["**/*.rs"],
-      "command": ["rustfmt", "$file"]
+      "command": ["rustfmt", "$files"]
     },
     {
       "name": "clang-format",
@@ -55,7 +55,7 @@
         "**/*.cpp",
         "**/*.hpp"
       ],
-      "command": ["clang-format", "-i", "$file"]
+      "command": ["clang-format", "-i", "$files"]
     }
   ]
 }
