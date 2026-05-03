@@ -9,6 +9,13 @@ import (
 )
 
 func TestExpandCommandArguments(t *testing.T) {
+	workingDirectory := t.TempDir()
+	writeTestFile(t, workingDirectory, "B.DotSettings")
+	writeTestFile(t, workingDirectory, "A.DotSettings")
+	writeTestFile(t, workingDirectory, "$FILES.DotSettings")
+	writeTestFile(t, workingDirectory, "$FILE.DotSettings")
+	writeTestFile(t, workingDirectory, "src", "Nested.DotSettings")
+
 	tests := map[string]struct {
 		command          []string
 		files            []string
@@ -46,10 +53,58 @@ func TestExpandCommandArguments(t *testing.T) {
 			workingDirectory: "/repo",
 			want:             []string{"tool", "--cwd=/repo", "/repo/a.go"},
 		},
-		"rejects missing files placeholder": {
+		"expands first file basename placeholder as one argument": {
+			command:          []string{"tool", "--settings", "$GLOB_FIRST_BASENAME([AB].DotSettings)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			want:             []string{"tool", "--settings", "A.DotSettings", "/repo/a.cs"},
+		},
+		"expands embedded first file basename placeholder": {
+			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME([AB].DotSettings)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			want:             []string{"tool", "--settings=A.DotSettings", "/repo/a.cs"},
+		},
+		"expands multiple first file basename placeholders": {
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME([AB].DotSettings):$GLOB_FIRST_BASENAME(src/*.DotSettings)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			want:             []string{"tool", "A.DotSettings:Nested.DotSettings", "/repo/a.cs"},
+		},
+		"does not re-expand files placeholder from basename": {
+			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME($FILES.DotSettings)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			want:             []string{"tool", "--settings=$FILES.DotSettings", "/repo/a.cs"},
+		},
+		"does not reject singular file placeholder from basename": {
+			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME($FILE.DotSettings)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			want:             []string{"tool", "--settings=$FILE.DotSettings", "/repo/a.cs"},
+		},
+		"rejects invalid first file basename glob": {
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME([)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			wantErr:          true,
+		},
+		"rejects unmatched first file basename glob": {
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME(*.missing)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			wantErr:          true,
+		},
+		"rejects malformed first file basename placeholder": {
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME()", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			wantErr:          true,
+		},
+		"allows command without files placeholder": {
 			command: []string{"tool"},
 			files:   []string{"/repo/a.go"},
-			wantErr: true,
+			want:    []string{"tool"},
 		},
 		"rejects singular file placeholder": {
 			command: []string{"tool", "$FILE"},
@@ -82,12 +137,7 @@ func TestGroupFilesByFormatterRespectsFirstMatchOrder(t *testing.T) {
 	cwd := t.TempDir()
 	t.Chdir(cwd)
 	file := filepath.Join(cwd, "site", "docs", "guide.md")
-	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
-		t.Fatalf("os.MkdirAll() error = %v, want nil", err)
-	}
-	if err := os.WriteFile(file, []byte("# Guide\n"), 0o644); err != nil {
-		t.Fatalf("os.WriteFile() error = %v, want nil", err)
-	}
+	writeTestFile(t, file)
 
 	cfg := &Config{
 		Formatters: []Formatter{
@@ -108,6 +158,18 @@ func TestGroupFilesByFormatterRespectsFirstMatchOrder(t *testing.T) {
 	}
 	if got := groups[1].files; len(got) != 0 {
 		t.Fatalf("second formatter files = %v, want empty", got)
+	}
+}
+
+func writeTestFile(t *testing.T, pathElements ...string) {
+	t.Helper()
+
+	path := filepath.Join(pathElements...)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("os.MkdirAll() error = %v, want nil", err)
+	}
+	if err := os.WriteFile(path, []byte("test"), 0o644); err != nil {
+		t.Fatalf("os.WriteFile() error = %v, want nil", err)
 	}
 }
 
