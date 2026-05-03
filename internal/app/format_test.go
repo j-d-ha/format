@@ -11,6 +11,8 @@ func TestExpandCommandArguments(t *testing.T) {
 	workingDirectory := t.TempDir()
 	writeTestFile(t, workingDirectory, "B.DotSettings")
 	writeTestFile(t, workingDirectory, "A.DotSettings")
+	writeTestFile(t, workingDirectory, "$FILES.DotSettings")
+	writeTestFile(t, workingDirectory, "$FILE.DotSettings")
 	writeTestFile(t, workingDirectory, "src", "Nested.DotSettings")
 
 	tests := map[string]struct {
@@ -51,22 +53,34 @@ func TestExpandCommandArguments(t *testing.T) {
 			want:             []string{"tool", "--cwd=/repo", "/repo/a.go"},
 		},
 		"expands first file basename placeholder as one argument": {
-			command:          []string{"tool", "--settings", "$GLOB_FIRST_BASENAME(*.DotSettings)", "$FILES"},
+			command:          []string{"tool", "--settings", "$GLOB_FIRST_BASENAME([AB].DotSettings)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			want:             []string{"tool", "--settings", "A.DotSettings", "/repo/a.cs"},
 		},
 		"expands embedded first file basename placeholder": {
-			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME(*.DotSettings)", "$FILES"},
+			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME([AB].DotSettings)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			want:             []string{"tool", "--settings=A.DotSettings", "/repo/a.cs"},
 		},
 		"expands multiple first file basename placeholders": {
-			command:          []string{"tool", "$GLOB_FIRST_BASENAME(*.DotSettings):$GLOB_FIRST_BASENAME(src/*.DotSettings)", "$FILES"},
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME([AB].DotSettings):$GLOB_FIRST_BASENAME(src/*.DotSettings)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			want:             []string{"tool", "A.DotSettings:Nested.DotSettings", "/repo/a.cs"},
+		},
+		"does not re-expand files placeholder from basename": {
+			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME($FILES.DotSettings)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			want:             []string{"tool", "--settings=$FILES.DotSettings", "/repo/a.cs"},
+		},
+		"does not reject singular file placeholder from basename": {
+			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME($FILE.DotSettings)", "$FILES"},
+			files:            []string{"/repo/a.cs"},
+			workingDirectory: workingDirectory,
+			want:             []string{"tool", "--settings=$FILE.DotSettings", "/repo/a.cs"},
 		},
 		"rejects invalid first file basename glob": {
 			command:          []string{"tool", "$GLOB_FIRST_BASENAME([)", "$FILES"},
