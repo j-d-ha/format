@@ -77,6 +77,16 @@ func main() {
 		}
 	}
 
+	hookCommands := make([]*cli.Command, 0, len(app.HookSpecs()))
+	for _, spec := range app.HookSpecs() {
+		spec := spec
+		hookCommands = append(hookCommands, &cli.Command{
+			Name:   spec.Name,
+			Usage:  spec.Usage,
+			Action: hookAction(spec.Parser, spec.DefaultLogToFile),
+		})
+	}
+
 	cmd := &cli.Command{
 		Name:  "format",
 		Usage: "Format source code",
@@ -111,20 +121,9 @@ func main() {
 				Action: formatFilesAction,
 			},
 			{
-				Name:  "hook",
-				Usage: "Format files from agent harness hook input",
-				Commands: []*cli.Command{
-					{
-						Name:   "codex",
-						Usage:  "Read Codex hook JSON from stdin and format edited files; logs to file by default",
-						Action: hookAction(app.ParseCodexHookInput, true),
-					},
-					{
-						Name:   "generic-patch",
-						Usage:  "Read apply-patch text from stdin and format edited files",
-						Action: hookAction(app.ParseGenericPatchHookInput, false),
-					},
-				},
+				Name:     "hook",
+				Usage:    "Format files from agent harness hook input",
+				Commands: hookCommands,
 			},
 		},
 		Action: formatFilesAction,
