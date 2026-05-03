@@ -171,6 +171,8 @@ Supported log levels are:
 - `warn`
 - `error`
 
+Use `--log-level info` to see high-level progress: config loaded, file matching summary, selected formatters, formatter completion, and total duration. Use `--log-level debug` when troubleshooting matching or command invocation; debug logs include config search paths, original CLI arguments, per-file match decisions, full formatter argv, and captured formatter stdout/stderr.
+
 Use `--log-to-file` to write logs to a generated log file, or `--log-file` to choose the exact path. These two flags are mutually exclusive.
 
 ## Notes

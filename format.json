@@ -30,7 +30,7 @@
       "command": [
         "prettier",
         "--write",
-        "$files"
+        "$FILES"
       ]
     },
     {
@@ -41,7 +41,7 @@
       "command": [
         "gofmt",
         "-w",
-        "$files"
+        "$FILES"
       ]
     },
     {
@@ -57,7 +57,7 @@
         "dotnet",
         "format",
         "--include",
-        "$files"
+        "$FILES"
       ]
     },
     {
@@ -67,7 +67,7 @@
       ],
       "command": [
         "rustfmt",
-        "$files"
+        "$FILES"
       ]
     },
     {
@@ -81,7 +81,7 @@
       "command": [
         "clang-format",
         "-i",
-        "$files"
+        "$FILES"
       ]
     }
   ]
