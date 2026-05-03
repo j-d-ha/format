@@ -15,17 +15,17 @@ func main() {
 	loggerConfig := &app.LoggerConfig{Logger: app.NewLogger(os.Stdout)}
 	defer func() {
 		if err := loggerConfig.Close(); err != nil {
-			loggerConfig.Logger.Error("Error encountered", slog.String("error", err.Error()))
+			loggerConfig.Logger.Error("Logger close failed", slog.String("error", err.Error()))
 		}
 	}()
 
 	logToFileFlag := &cli.BoolFlag{
 		Name:  "log-to-file",
-		Usage: "write logs to a generated log file",
+		Usage: "write logs to generated log file",
 	}
 	logFileFlag := &cli.StringFlag{
 		Name:  "log-file",
-		Usage: "write logs to the specified file path",
+		Usage: "write logs to specified file path",
 	}
 
 	configureLogger := func(cmd *cli.Command) error {
@@ -66,7 +66,12 @@ func main() {
 					sessionID = input.SessionID
 				}
 
-				return app.ConfigureFileLogger(app.GeneratedLogFileName(sessionID), level)
+				runner := cmd.String("log-runner")
+				if runner == "" && os.Getenv("FORMAT_RUNNER") == "" {
+					runner = "codex"
+				}
+				metadata := app.ResolveLogMetadata(cmd.String("log-project"), runner, sessionID)
+				return app.ConfigureFileLoggerWithMetadata(app.GeneratedLogFileName(metadata), level, metadata)
 			}
 
 			configuredLogger, err := app.FormatHook(ctx, loggerConfig.Logger, os.Stdin, cmd.String(app.ConfigFlagName), parser, loggerFactory)
@@ -89,12 +94,12 @@ func main() {
 
 	cmd := &cli.Command{
 		Name:  "format",
-		Usage: "Format source code",
+		Usage: "Format source files",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    app.ConfigFlagName,
 				Aliases: []string{"c"},
-				Usage:   "path to a config file; defaults to ./format.json, then the user config directory",
+				Usage:   "path to config file; defaults to ./format.json, then user config directory",
 			},
 			&cli.StringFlag{
 				Name:  "log-level",
@@ -102,8 +107,16 @@ func main() {
 				Value: "warn",
 			},
 			&cli.StringFlag{
+				Name:  "log-project",
+				Usage: "project name to include in generated log file paths; defaults to FORMAT_PROJECT, git root name, then cwd name",
+			},
+			&cli.StringFlag{
+				Name:  "log-runner",
+				Usage: "runner name to include in generated log file paths; defaults to FORMAT_RUNNER, then cli",
+			},
+			&cli.StringFlag{
 				Name:  "log-session-id",
-				Usage: "session identifier to include in generated log file names",
+				Usage: "session identifier to include in generated log file names; defaults to FORMAT_SESSION_ID, then timestamp-pid",
 			},
 		},
 		MutuallyExclusiveFlags: []cli.MutuallyExclusiveFlags{
@@ -117,12 +130,12 @@ func main() {
 		Commands: []*cli.Command{
 			{
 				Name:   "files",
-				Usage:  "Format explicit file arguments",
+				Usage:  "Format listed file arguments",
 				Action: formatFilesAction,
 			},
 			{
 				Name:     "hook",
-				Usage:    "Format files from agent harness hook input",
+				Usage:    "Format files from hook input",
 				Commands: hookCommands,
 			},
 		},
@@ -130,7 +143,7 @@ func main() {
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
-		loggerConfig.Logger.Error("Error encountered", slog.String("error", err.Error()))
+		loggerConfig.Logger.Error("Command failed", slog.String("error", err.Error()))
 		os.Exit(1)
 	}
 }

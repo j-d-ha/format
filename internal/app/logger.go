@@ -5,7 +5,9 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 
@@ -14,11 +16,25 @@ import (
 )
 
 const (
-	// DefaultLogDir is the project-local directory used for generated log files.
-	DefaultLogDir = ".format/logs"
+	// defaultLogDir is the fallback project-local directory used when the user log
+	// directory cannot be resolved.
+	defaultLogDir = ".format/logs"
 
 	defaultLogFilePrefix = "format"
+	envLogProject        = "FORMAT_PROJECT"
+	envLogRunner         = "FORMAT_RUNNER"
+	envLogSessionID      = "FORMAT_SESSION_ID"
+	envLogDir            = "FORMAT_LOG_DIR"
 )
+
+// LogMetadata describes generated log file identity and routing fields.
+type LogMetadata struct {
+	Project   string
+	Runner    string
+	SessionID string
+	CWD       string
+	GitRoot   string
+}
 
 // LoggerConfig contains the logger and optional file handle configured from CLI
 // flags. Callers must close File when it is not nil.
@@ -45,19 +61,31 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 		return nil, fmt.Errorf("[in app.ConfigureLogger] parse log level so command logs can be filtered: %w", err)
 	}
 
+	metadata := ResolveLogMetadata(cmd.String("log-project"), cmd.String("log-runner"), cmd.String("log-session-id"))
+
 	logPath := ""
 	switch {
 	case cmd.Bool("log-to-file"):
-		logPath = GeneratedLogFileName(cmd.String("log-session-id"))
+		logPath = GeneratedLogFileName(metadata)
 	case cmd.IsSet("log-file"):
 		logPath = cmd.String("log-file")
 	}
 
 	if logPath == "" {
-		return &LoggerConfig{Logger: NewLoggerWithLevel(os.Stdout, level)}, nil
+		return &LoggerConfig{Logger: NewLoggerWithLevel(os.Stdout, level).With(logAttributes(metadata)...)}, nil
 	}
 
-	return ConfigureFileLogger(logPath, level)
+	return ConfigureFileLoggerWithMetadata(logPath, level, metadata)
+}
+
+// ConfigureFileLoggerWithMetadata creates a file logger and attaches identity attributes.
+func ConfigureFileLoggerWithMetadata(path string, level slog.Level, metadata LogMetadata) (*LoggerConfig, error) {
+	cfg, err := ConfigureFileLogger(path, level)
+	if err != nil {
+		return nil, err
+	}
+	cfg.Logger = cfg.Logger.With(logAttributes(metadata)...)
+	return cfg, nil
 }
 
 // ConfigureFileLogger creates a logger that writes to path at level and above.
@@ -73,13 +101,56 @@ func ConfigureFileLogger(path string, level slog.Level) (*LoggerConfig, error) {
 	}, nil
 }
 
-// GeneratedLogFileName returns the project-local log file path for sessionID.
-func GeneratedLogFileName(sessionID string) string {
-	if sessionID == "" {
-		sessionID = time.Now().UTC().Format("20060102T150405Z")
+// GeneratedLogFileName returns the generated user log file path for metadata.
+func GeneratedLogFileName(metadata LogMetadata) string {
+	metadata = normalizeLogMetadata(metadata)
+	return filepath.Join(userLogDir(), metadata.Project, metadata.Runner, fmt.Sprintf("%s-%s.log", defaultLogFilePrefix, metadata.SessionID))
+}
+
+// ResolveLogMetadata resolves log routing metadata from explicit values, environment, git, and cwd.
+func ResolveLogMetadata(project string, runner string, sessionID string) LogMetadata {
+	cwd, err := os.Getwd()
+	if err != nil || cwd == "" {
+		cwd = "."
 	}
 
-	return filepath.Join(DefaultLogDir, fmt.Sprintf("%s-%s-formatter.log", defaultLogFilePrefix, sanitizeLogFilePart(sessionID)))
+	gitRoot := gitRoot(cwd)
+	metadata := LogMetadata{
+		Project:   firstNonEmpty(project, os.Getenv(envLogProject), projectNameFromGitRoot(gitRoot), filepath.Base(cwd), "unknown"),
+		Runner:    firstNonEmpty(runner, os.Getenv(envLogRunner), "cli"),
+		SessionID: firstNonEmpty(sessionID, os.Getenv(envLogSessionID), fmt.Sprintf("%s-%d", time.Now().UTC().Format("20060102T150405Z"), os.Getpid())),
+		CWD:       cwd,
+		GitRoot:   gitRoot,
+	}
+
+	return normalizeLogMetadata(metadata)
+}
+
+// userLogDir returns the per-user log directory used for generated log files.
+func userLogDir() string {
+	if dir := strings.TrimSpace(os.Getenv(envLogDir)); dir != "" {
+		return dir
+	}
+
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return defaultLogDir
+	}
+
+	switch runtime.GOOS {
+	case "darwin":
+		return filepath.Join(home, "Library", "Logs", "format")
+	case "windows":
+		if localAppData := strings.TrimSpace(os.Getenv("LOCALAPPDATA")); localAppData != "" {
+			return filepath.Join(localAppData, "format", "Logs")
+		}
+		return filepath.Join(home, "AppData", "Local", "format", "Logs")
+	default:
+		if xdgStateHome := strings.TrimSpace(os.Getenv("XDG_STATE_HOME")); xdgStateHome != "" {
+			return filepath.Join(xdgStateHome, "format", "logs")
+		}
+		return filepath.Join(home, ".local", "state", "format", "logs")
+	}
 }
 
 // Close closes the configured log file when file logging is enabled.
@@ -95,10 +166,56 @@ func (cfg *LoggerConfig) Close() error {
 	return nil
 }
 
+func normalizeLogMetadata(metadata LogMetadata) LogMetadata {
+	metadata.Project = sanitizeLogFilePart(firstNonEmpty(metadata.Project, "unknown"))
+	metadata.Runner = sanitizeLogFilePart(firstNonEmpty(metadata.Runner, "cli"))
+	metadata.SessionID = sanitizeLogFilePart(firstNonEmpty(metadata.SessionID, fmt.Sprintf("%s-%d", time.Now().UTC().Format("20060102T150405Z"), os.Getpid())))
+	return metadata
+}
+
+func logAttributes(metadata LogMetadata) []any {
+	metadata = normalizeLogMetadata(metadata)
+	attrs := []any{
+		slog.String("project", metadata.Project),
+		slog.String("runner", metadata.Runner),
+		slog.String("sessionID", metadata.SessionID),
+		slog.String("cwd", metadata.CWD),
+	}
+	if metadata.GitRoot != "" {
+		attrs = append(attrs, slog.String("gitRoot", metadata.GitRoot))
+	}
+	return attrs
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func gitRoot(cwd string) string {
+	command := exec.Command("git", "-C", cwd, "rev-parse", "--show-toplevel")
+	output, err := command.Output()
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(output))
+}
+
+func projectNameFromGitRoot(gitRoot string) string {
+	if gitRoot == "" {
+		return ""
+	}
+	return filepath.Base(gitRoot)
+}
+
 func sanitizeLogFilePart(part string) string {
 	part = strings.TrimSpace(part)
 	if part == "" {
-		return "session"
+		return "unknown"
 	}
 
 	var builder strings.Builder
