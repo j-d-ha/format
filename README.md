@@ -187,9 +187,10 @@ Formatter commands are configured as an argv array; each JSON string becomes one
 | --- | --- | --- | --- |
 | `$FILES` | Yes | One argument containing file paths joined by the formatter's `filesDelimiter`. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. `filesDelimiter` defaults to a single space and can be set to values such as `,`, `, `, or `;`. Embedded placeholders are supported, so `--include=$FILES` becomes one `--include=<joined-files>` argument. |
 | `$WORKING_DIRECTORY` | No | The resolved process working directory as one argument. | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. Embedded placeholders are supported. |
+| `$FIRST_FILE_BASENAME(<glob>)` | No | Basename of the first deterministic match for `<glob>`. | Glob resolves relative to the formatter working directory. Matches are sorted before choosing the first. Embedded placeholders are supported, so `--settings=$FIRST_FILE_BASENAME(*.DotSettings)` becomes `--settings=<file>.DotSettings`. Invalid or unmatched globs fail the command. |
 | `$FILE` | No | Nothing. | Unsupported; commands using it are rejected. Use `$FILES` instead. |
 
-For example, with the default delimiter, `"$FILES"` expands to `"/repo/a.go /repo/b.go"`. With `"filesDelimiter": ","`, `"--files=$FILES"` expands to `"--files=/repo/a.go,/repo/b.go"`.
+For example, with the default delimiter, `"$FILES"` expands to `"/repo/a.go /repo/b.go"`. With `"filesDelimiter": ","`, `"--files=$FILES"` expands to `"--files=/repo/a.go,/repo/b.go"`. `"--settings=$FIRST_FILE_BASENAME(*.DotSettings)"` resolves the glob from the formatter working directory and expands to the basename of the first sorted match.
 
 ### JSON Schema
 

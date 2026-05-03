@@ -9,6 +9,8 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -280,6 +282,8 @@ func resolveWorkingDirectory(path string) (string, error) {
 	return abs, nil
 }
 
+var firstFileBasenamePattern = regexp.MustCompile(`\$FIRST_FILE_BASENAME\(([^)]+)\)`)
+
 // expandCommandArguments replaces supported placeholder arguments in command.
 func expandCommandArguments(command []string, files []string, workingDirectory string, filesDelimiter string) ([]string, error) {
 	argv := make([]string, 0, len(command))
@@ -287,6 +291,13 @@ func expandCommandArguments(command []string, files []string, workingDirectory s
 	joinedFiles := strings.Join(files, effectiveFilesDelimiter(filesDelimiter))
 
 	for _, arg := range command {
+		expandedArg, err := expandFunctionPlaceholders(arg, workingDirectory)
+		if err != nil {
+			return nil, fmt.Errorf("[in app.expandCommandArguments] expand function placeholders in command argument %q: %w", arg, err)
+		}
+
+		arg = expandedArg
+
 		switch {
 		case arg == "$FILES":
 			foundFiles = true
@@ -310,6 +321,53 @@ func expandCommandArguments(command []string, files []string, workingDirectory s
 	}
 
 	return argv, nil
+}
+
+// expandFunctionPlaceholders replaces function-style placeholders in arg.
+func expandFunctionPlaceholders(arg string, workingDirectory string) (string, error) {
+	var expandErr error
+	expandedArg := firstFileBasenamePattern.ReplaceAllStringFunc(arg, func(match string) string {
+		if expandErr != nil {
+			return match
+		}
+
+		parts := firstFileBasenamePattern.FindStringSubmatch(match)
+		if len(parts) != 2 {
+			expandErr = fmt.Errorf("[in app.expandFunctionPlaceholders] parse $FIRST_FILE_BASENAME placeholder %q", match)
+			return match
+		}
+
+		basename, err := firstFileBasename(workingDirectory, parts[1])
+		if err != nil {
+			expandErr = err
+			return match
+		}
+
+		return basename
+	})
+	if expandErr != nil {
+		return "", expandErr
+	}
+	if strings.Contains(expandedArg, "$FIRST_FILE_BASENAME(") {
+		return "", fmt.Errorf("[in app.expandFunctionPlaceholders] reject malformed $FIRST_FILE_BASENAME placeholder in argument %q", arg)
+	}
+
+	return expandedArg, nil
+}
+
+// firstFileBasename returns basename of first deterministic glob match.
+func firstFileBasename(workingDirectory string, pattern string) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(workingDirectory, pattern))
+	if err != nil {
+		return "", fmt.Errorf("[in app.firstFileBasename] resolve glob %q relative to working directory %q: %w", pattern, workingDirectory, err)
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("[in app.firstFileBasename] resolve glob %q relative to working directory %q because no files matched", pattern, workingDirectory)
+	}
+
+	sort.Strings(matches)
+
+	return filepath.Base(matches[0]), nil
 }
 
 // effectiveFilesDelimiter returns the delimiter used to join files for $FILES.

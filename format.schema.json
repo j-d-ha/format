@@ -73,7 +73,7 @@
         },
         "command": {
           "type": "array",
-          "description": "Executable and arguments used to invoke the formatter. Include $FILES where the assigned files should be expanded. Use $WORKING_DIRECTORY to pass the resolved process working directory.",
+          "description": "Executable and arguments used to invoke the formatter. Include $FILES where the assigned files should be expanded. Use $WORKING_DIRECTORY to pass the resolved process working directory. Use $FIRST_FILE_BASENAME(<glob>) to pass the basename of the first sorted glob match relative to the formatter working directory.",
           "minItems": 1,
           "items": {
             "type": "string",
