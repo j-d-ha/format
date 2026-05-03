@@ -50,7 +50,7 @@ func FormatFiles(ctx context.Context, logger *slog.Logger, requestedConfigPath s
 		return fmt.Errorf("[in app.Format] load config before grouping input files by formatter: %w", err)
 	}
 
-	logger.Info("Config loaded", slog.String("path", configPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
+	logger.Info("Config loaded", slog.String("path", configPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", effectiveMatchPolicy(cfg.MatchPolicy)))
 
 	files, invalidFileCount := validateFileArguments(logger, args)
 	logger.Info("Format started", slog.Int("requestedFileCount", len(args)), slog.Int("validFileCount", len(files)), slog.Int("invalidFileCount", invalidFileCount))
@@ -208,7 +208,7 @@ func groupFilesByFormatter(logger *slog.Logger, cfg *Config, files []string) ([]
 			matchedFormatter = true
 			groups[i].files = append(groups[i].files, normalized.abs)
 			logger.Debug("Matched file to formatter", slog.String("formatter", formatter.Name), slog.String("input", normalized.input), slog.String("matchPath", normalized.rel), slog.String("executionPath", normalized.abs))
-			if cfg.MatchPolicy == "first" {
+			if effectiveMatchPolicy(cfg.MatchPolicy) == "first" {
 				break
 			}
 		}
@@ -233,6 +233,15 @@ func groupFilesByFormatter(logger *slog.Logger, cfg *Config, files []string) ([]
 	}
 
 	return groups, stats, nil
+}
+
+// effectiveMatchPolicy returns the formatter match policy used at runtime.
+func effectiveMatchPolicy(matchPolicy string) string {
+	if matchPolicy == "" {
+		return "first"
+	}
+
+	return matchPolicy
 }
 
 // matchesAny reports whether path matches at least one doublestar glob pattern.
