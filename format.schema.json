@@ -22,6 +22,10 @@
       "$ref": "#/$defs/globPatterns",
       "description": "Global glob patterns that are ignored before formatter-specific matching."
     },
+    "workingDirectory": {
+      "$ref": "#/$defs/workingDirectory",
+      "description": "Default process working directory for formatter commands. Relative paths are resolved from the caller's current working directory."
+    },
     "formatters": {
       "type": "array",
       "description": "Ordered formatter definitions.",
@@ -58,19 +62,32 @@
           "$ref": "#/$defs/globPatterns",
           "description": "Formatter-specific glob patterns to ignore."
         },
+        "workingDirectory": {
+          "$ref": "#/$defs/workingDirectory",
+          "description": "Formatter-specific process working directory. Overrides the top-level workingDirectory."
+        },
+        "filesDelimiter": {
+          "type": "string",
+          "description": "Delimiter used to join file paths when expanding $FILES. Defaults to a single space.",
+          "default": " "
+        },
         "command": {
           "type": "array",
-          "description": "Executable and arguments used to invoke the formatter. Include $files where the assigned files should be expanded.",
+          "description": "Executable and arguments used to invoke the formatter. Include $FILES where the assigned files should be expanded. Use $WORKING_DIRECTORY to pass the resolved process working directory.",
           "minItems": 1,
           "items": {
             "type": "string",
             "minLength": 1
           },
           "contains": {
-            "const": "$files"
+            "pattern": "\\$FILES"
           }
         }
       }
+    },
+    "workingDirectory": {
+      "type": "string",
+      "minLength": 1
     },
     "nonEmptyGlobPatterns": {
       "allOf": [

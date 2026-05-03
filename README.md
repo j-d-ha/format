@@ -57,17 +57,18 @@ A config file contains global excludes and an ordered list of formatter definiti
     "dist/**",
     "build/**"
   ],
+  "workingDirectory": ".",
   "formatters": [
     {
       "name": "prettier",
       "patterns": ["**/*.js", "**/*.ts", "**/*.json", "**/*.md"],
       "exclude": ["package-lock.json"],
-      "command": ["prettier", "--write", "$files"]
+      "command": ["prettier", "--write", "$FILES"]
     },
     {
       "name": "gofmt",
       "patterns": ["**/*.go"],
-      "command": ["gofmt", "-w", "$files"]
+      "command": ["gofmt", "-w", "$FILES"]
     }
   ]
 }
@@ -80,6 +81,7 @@ A config file contains global excludes and an ordered list of formatter definiti
   - `all`: run every formatter whose patterns match a file.
   - `first`: run only the first matching formatter for each file.
 - `exclude`: global glob patterns to skip before formatter matching.
+- `workingDirectory`: default process working directory for formatter commands. If omitted, the current working directory used to launch `format` is used. Relative paths are resolved from that same current working directory.
 - `formatters`: ordered formatter definitions.
 
 Each formatter supports:
@@ -87,9 +89,21 @@ Each formatter supports:
 - `name`: human-readable formatter name used in logs.
 - `patterns`: glob patterns matched against input files.
 - `exclude`: formatter-specific glob patterns to skip.
-- `command`: formatter command and arguments. It must include the `$files` placeholder.
+- `workingDirectory`: optional formatter-specific process working directory. Overrides the top-level `workingDirectory`.
+- `filesDelimiter`: optional delimiter used to join matched files when expanding `$FILES`. Defaults to a single space.
+- `command`: formatter command and arguments. It must include the `$FILES` placeholder.
 
-The `$files` placeholder is expanded to the files assigned to that formatter.
+### Command expansion and working directory
+
+Formatter commands are configured as an argv array; each JSON string becomes one process argument unless it contains one of the supported placeholders below.
+
+| Placeholder | Required | Expands to | Notes |
+| --- | --- | --- | --- |
+| `$FILES` | Yes | One argument containing file paths joined by the formatter's `filesDelimiter`. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. `filesDelimiter` defaults to a single space and can be set to values such as `,`, `, `, or `;`. Embedded placeholders are supported, so `--include=$FILES` becomes one `--include=<joined-files>` argument. |
+| `$WORKING_DIRECTORY` | No | The resolved process working directory as one argument. | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. Embedded placeholders are supported. |
+| `$FILE` | No | Nothing. | Unsupported; commands using it are rejected. Use `$FILES` instead. |
+
+For example, with the default delimiter, `"$FILES"` expands to `"/repo/a.go /repo/b.go"`. With `"filesDelimiter": ","`, `"--files=$FILES"` expands to `"--files=/repo/a.go,/repo/b.go"`.
 
 ### JSON Schema
 
@@ -106,7 +120,7 @@ To enable schema support in a config file, add a `$schema` property that points 
     {
       "name": "gofmt",
       "patterns": ["**/*.go"],
-      "command": ["gofmt", "-w", "$files"]
+      "command": ["gofmt", "-w", "$FILES"]
     }
   ]
 }
@@ -156,6 +170,8 @@ Supported log levels are:
 - `info`
 - `warn`
 - `error`
+
+Use `--log-level info` to see high-level progress: config loaded, file matching summary, selected formatters, formatter completion, and total duration. Use `--log-level debug` when troubleshooting matching or command invocation; debug logs include config search paths, original CLI arguments, per-file match decisions, full formatter argv, and captured formatter stdout/stderr.
 
 Use `--log-to-file` to write logs to a generated log file, or `--log-file` to choose the exact path. These two flags are mutually exclusive.
 
