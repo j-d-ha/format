@@ -25,7 +25,7 @@ func TestHookSpecs(t *testing.T) {
 		seen[spec.Name] = struct{}{}
 	}
 
-	for _, name := range []string{"codex", "apply-patch"} {
+	for _, name := range []string{"codex", "claude", "apply-patch"} {
 		if _, ok := seen[name]; !ok {
 			t.Fatalf("HookSpecs() missing spec %q", name)
 		}

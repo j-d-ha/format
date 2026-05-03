@@ -86,3 +86,56 @@ func TestParseCodexHookInput(t *testing.T) {
 		})
 	}
 }
+
+func TestParseClaudeHookInput(t *testing.T) {
+	tests := map[string]struct {
+		raw     []byte
+		want    HookInput
+		wantErr bool
+	}{
+		"extracts session and file path": {
+			raw: []byte(`{"session_id":"abc-123","hook_event_name":"PostToolUse","tool_name":"Edit","tool_input":{"file_path":"internal/app/hook.go"}}`),
+			want: HookInput{
+				Files:     []string{"internal/app/hook.go"},
+				SessionID: "abc-123",
+			},
+		},
+		"extracts notebook path": {
+			raw: []byte(`{"session_id":"abc-123","tool_name":"NotebookEdit","tool_input":{"notebook_path":"analysis.ipynb"}}`),
+			want: HookInput{
+				Files:     []string{"analysis.ipynb"},
+				SessionID: "abc-123",
+			},
+		},
+		"deduplicates file and notebook path": {
+			raw: []byte(`{"session_id":"abc-123","tool_input":{"file_path":"same.md","notebook_path":"same.md"}}`),
+			want: HookInput{
+				Files:     []string{"same.md"},
+				SessionID: "abc-123",
+			},
+		},
+		"rejects invalid json": {
+			raw:     []byte(`{`),
+			wantErr: true,
+		},
+	}
+
+	for name, tc := range tests {
+		name, tc := name, tc
+		t.Run(name, func(t *testing.T) {
+			got, err := ParseClaudeHookInput(tc.raw)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("ParseClaudeHookInput() error = nil, want an error")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("ParseClaudeHookInput() error = %v, want nil", err)
+			}
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Fatalf("ParseClaudeHookInput() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

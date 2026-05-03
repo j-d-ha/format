@@ -87,6 +87,7 @@ Currently supported:
 
 ```sh
 format hook codex
+format hook claude
 format hook apply-patch
 ```
 
@@ -133,6 +134,40 @@ format --log-level debug hook codex
 ```
 
 If `stdin` is empty or no edited files are found, command exits successfully without running formatters.
+
+#### `format hook claude`
+
+Reads Claude Code hook JSON from `stdin`, extracts:
+
+- `session_id` for generated log file names
+- `tool_input.file_path` for edited files from `Write`, `Edit`, and `MultiEdit`
+- `tool_input.notebook_path` for edited notebooks from `NotebookEdit`
+
+Example `.claude/settings.json` hook command:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "format hook claude"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Claude hook logging defaults to generated file logs even when `--log-to-file` is not passed. If `session_id` is present, log path becomes:
+
+```text
+~/Library/Logs/format/<project>/claude/format-<session_id>.log
+```
 
 #### `format hook apply-patch`
 
