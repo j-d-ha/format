@@ -57,17 +57,18 @@ A config file contains global excludes and an ordered list of formatter definiti
     "dist/**",
     "build/**"
   ],
+  "workingDirectory": ".",
   "formatters": [
     {
       "name": "prettier",
       "patterns": ["**/*.js", "**/*.ts", "**/*.json", "**/*.md"],
       "exclude": ["package-lock.json"],
-      "command": ["prettier", "--write", "$files"]
+      "command": ["prettier", "--write", "$FILES"]
     },
     {
       "name": "gofmt",
       "patterns": ["**/*.go"],
-      "command": ["gofmt", "-w", "$files"]
+      "command": ["gofmt", "-w", "$FILES"]
     }
   ]
 }
@@ -80,6 +81,7 @@ A config file contains global excludes and an ordered list of formatter definiti
   - `all`: run every formatter whose patterns match a file.
   - `first`: run only the first matching formatter for each file.
 - `exclude`: global glob patterns to skip before formatter matching.
+- `workingDirectory`: default process working directory for formatter commands. If omitted, the current working directory used to launch `format` is used. Relative paths are resolved from that same current working directory.
 - `formatters`: ordered formatter definitions.
 
 Each formatter supports:
@@ -87,9 +89,20 @@ Each formatter supports:
 - `name`: human-readable formatter name used in logs.
 - `patterns`: glob patterns matched against input files.
 - `exclude`: formatter-specific glob patterns to skip.
-- `command`: formatter command and arguments. It must include the `$files` placeholder.
+- `workingDirectory`: optional formatter-specific process working directory. Overrides the top-level `workingDirectory`.
+- `command`: formatter command and arguments. It must include the `$FILES` placeholder.
 
-The `$files` placeholder is expanded to the files assigned to that formatter.
+### Command expansion and working directory
+
+Formatter commands are configured as an argv array; each JSON string becomes one process argument unless it is one of the supported placeholder strings below.
+
+| Placeholder | Required | Expands to | Notes |
+| --- | --- | --- | --- |
+| `$FILES` | Yes | One argument per file assigned to that formatter. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. |
+| `$WORKING_DIRECTORY` | No | The resolved process working directory as one argument. | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. |
+| `$FILE` | No | Nothing. | Unsupported; commands using it are rejected. Use `$FILES` instead. |
+
+Only exact argument values are expanded. For example, `"$FILES"` expands, but `"--files=$FILES"` is passed through unchanged.
 
 ### JSON Schema
 
@@ -106,7 +119,7 @@ To enable schema support in a config file, add a `$schema` property that points 
     {
       "name": "gofmt",
       "patterns": ["**/*.go"],
-      "command": ["gofmt", "-w", "$files"]
+      "command": ["gofmt", "-w", "$FILES"]
     }
   ]
 }

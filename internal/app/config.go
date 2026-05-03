@@ -54,6 +54,11 @@ type Config struct {
 	// formatter-specific matching is performed.
 	Exclude []string `json:"exclude,omitempty"`
 
+	// WorkingDirectory is the default process working directory used when running
+	// formatter commands. Relative values are resolved from the caller's current
+	// working directory.
+	WorkingDirectory string `json:"workingDirectory,omitempty"`
+
 	// Formatters is the ordered list of formatter definitions.
 	Formatters []Formatter `json:"formatters" validate:"required,min=1,dive"`
 }
@@ -69,9 +74,14 @@ type Formatter struct {
 	// Exclude contains formatter-specific glob patterns to ignore.
 	Exclude []string `json:"exclude,omitempty"`
 
+	// WorkingDirectory overrides the top-level process working directory for this
+	// formatter. Relative values are resolved from the caller's current working
+	// directory.
+	WorkingDirectory string `json:"workingDirectory,omitempty"`
+
 	// Command is the executable and argv list used to invoke the formatter.
-	// Placeholder arguments such as "$file" and "$files" are expanded by the
-	// formatter runner.
+	// Placeholder arguments such as "$FILES" and "$WORKING_DIRECTORY" are
+	// expanded by the formatter runner.
 	Command []string `json:"command" validate:"required,min=1,dive,required"`
 }
 

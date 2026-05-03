@@ -16,7 +16,7 @@ import (
 )
 
 // Format returns the CLI action that groups input files by configured formatter
-// patterns and runs each matching formatter with a $files expansion.
+// patterns and runs each matching formatter with a $FILES expansion.
 func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 	return func(ctx context.Context, cmd *cli.Command) error {
 		cfg, configPath, err := LoadConfigForPath(cmd.String(ConfigFlagName))
@@ -41,13 +41,18 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 
 			logger.Debug("Formatter group ready", slog.String("formatter", group.formatter.Name), slog.Int("fileCount", len(group.files)))
 
-			argv, err := expandFilesArgument(group.formatter.Command, group.files)
+			workingDirectory, err := resolveWorkingDirectory(effectiveWorkingDirectory(cfg, group.formatter))
 			if err != nil {
-				return fmt.Errorf("[in app.Format] expand formatter %q command with grouped files: %w", group.formatter.Name, err)
+				return fmt.Errorf("[in app.Format] resolve formatter %q working directory before expanding command: %w", group.formatter.Name, err)
 			}
 
-			logger.Info("Running formatter", slog.String("formatter", group.formatter.Name), slog.Any("argv", argv))
-			if err := runFormatter(ctx, logger, group.formatter.Name, argv); err != nil {
+			argv, err := expandCommandArguments(group.formatter.Command, group.files, workingDirectory)
+			if err != nil {
+				return fmt.Errorf("[in app.Format] expand formatter %q command with grouped files and working directory: %w", group.formatter.Name, err)
+			}
+
+			logger.Info("Running formatter", slog.String("formatter", group.formatter.Name), slog.String("workingDirectory", workingDirectory), slog.Any("argv", argv))
+			if err := runFormatter(ctx, logger, group.formatter.Name, argv, workingDirectory); err != nil {
 				return fmt.Errorf("[in app.Format] run formatter %q on matched files: %w", group.formatter.Name, err)
 			}
 		}
@@ -176,25 +181,57 @@ func matchesAny(patterns []string, path string) (bool, error) {
 	return false, nil
 }
 
-// expandFilesArgument replaces the required $files placeholder with files.
-func expandFilesArgument(command []string, files []string) ([]string, error) {
+// effectiveWorkingDirectory returns the formatter-specific working directory
+// when configured, otherwise the top-level default working directory.
+func effectiveWorkingDirectory(cfg *Config, formatter Formatter) string {
+	if formatter.WorkingDirectory != "" {
+		return formatter.WorkingDirectory
+	}
+
+	return cfg.WorkingDirectory
+}
+
+// resolveWorkingDirectory returns an absolute process working directory for a
+// formatter command. Empty values resolve to the caller's current directory.
+func resolveWorkingDirectory(path string) (string, error) {
+	if path == "" {
+		wd, err := os.Getwd()
+		if err != nil {
+			return "", fmt.Errorf("[in app.resolveWorkingDirectory] get current working directory for formatter command: %w", err)
+		}
+
+		return wd, nil
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("[in app.resolveWorkingDirectory] make configured working directory %q absolute before running formatter: %w", path, err)
+	}
+
+	return abs, nil
+}
+
+// expandCommandArguments replaces supported placeholder arguments in command.
+func expandCommandArguments(command []string, files []string, workingDirectory string) ([]string, error) {
 	argv := make([]string, 0, len(command)+len(files))
 	foundFiles := false
 
 	for _, arg := range command {
 		switch arg {
-		case "$files":
+		case "$FILES":
 			foundFiles = true
 			argv = append(argv, files...)
-		case "$file":
-			return nil, fmt.Errorf("[in app.expandFilesArgument] reject unsupported $file placeholder because only $files is supported")
+		case "$WORKING_DIRECTORY":
+			argv = append(argv, workingDirectory)
+		case "$FILE":
+			return nil, fmt.Errorf("[in app.expandCommandArguments] reject unsupported $FILE placeholder because only $FILES is supported")
 		default:
 			argv = append(argv, arg)
 		}
 	}
 
 	if !foundFiles {
-		return nil, fmt.Errorf("[in app.expandFilesArgument] reject command because it does not contain required $files placeholder")
+		return nil, fmt.Errorf("[in app.expandCommandArguments] reject command because it does not contain required $FILES placeholder")
 	}
 
 	return argv, nil
@@ -203,7 +240,7 @@ func expandFilesArgument(command []string, files []string) ([]string, error) {
 // runFormatter executes a formatter command, inheriting standard output and
 // standard error so formatter output is visible to the caller while also logging
 // captured output at debug level.
-func runFormatter(ctx context.Context, logger *slog.Logger, formatterName string, argv []string) error {
+func runFormatter(ctx context.Context, logger *slog.Logger, formatterName string, argv []string, workingDirectory string) error {
 	if len(argv) == 0 {
 		return fmt.Errorf("[in app.runFormatter] reject empty formatter command because no executable was configured")
 	}
@@ -212,6 +249,7 @@ func runFormatter(ctx context.Context, logger *slog.Logger, formatterName string
 	var stderr bytes.Buffer
 
 	command := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	command.Dir = workingDirectory
 	command.Stdout = io.MultiWriter(os.Stdout, &stdout)
 	command.Stderr = io.MultiWriter(os.Stderr, &stderr)
 	command.Stdin = os.Stdin
