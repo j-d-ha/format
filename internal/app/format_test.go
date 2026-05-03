@@ -25,10 +25,16 @@ func TestExpandCommandArguments(t *testing.T) {
 			workingDirectory: "/repo",
 			want:             []string{"tool", "--cwd", "/repo", "/repo/a.go"},
 		},
-		"leaves embedded placeholder text unchanged": {
-			command: []string{"tool", "--files=$FILES", "$FILES"},
-			files:   []string{"/repo/a.go"},
-			want:    []string{"tool", "--files=$FILES", "/repo/a.go"},
+		"expands embedded files placeholder once per file": {
+			command: []string{"tool", "--files=$FILES"},
+			files:   []string{"/repo/a.go", "/repo/b.go"},
+			want:    []string{"tool", "--files=/repo/a.go", "--files=/repo/b.go"},
+		},
+		"expands embedded working directory placeholder": {
+			command:          []string{"tool", "--cwd=$WORKING_DIRECTORY", "$FILES"},
+			files:            []string{"/repo/a.go"},
+			workingDirectory: "/repo",
+			want:             []string{"tool", "--cwd=/repo", "/repo/a.go"},
 		},
 		"rejects missing files placeholder": {
 			command: []string{"tool"},

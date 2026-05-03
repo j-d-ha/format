@@ -94,15 +94,15 @@ Each formatter supports:
 
 ### Command expansion and working directory
 
-Formatter commands are configured as an argv array; each JSON string becomes one process argument unless it is one of the supported placeholder strings below.
+Formatter commands are configured as an argv array; each JSON string becomes one process argument unless it contains one of the supported placeholders below.
 
 | Placeholder | Required | Expands to | Notes |
 | --- | --- | --- | --- |
-| `$FILES` | Yes | One argument per file assigned to that formatter. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. |
-| `$WORKING_DIRECTORY` | No | The resolved process working directory as one argument. | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. |
+| `$FILES` | Yes | One argument per file assigned to that formatter. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. Embedded placeholders expand once per file, so `--include=$FILES` becomes one `--include=<file>` argument per file. |
+| `$WORKING_DIRECTORY` | No | The resolved process working directory as one argument. | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. Embedded placeholders are supported. |
 | `$FILE` | No | Nothing. | Unsupported; commands using it are rejected. Use `$FILES` instead. |
 
-Only exact argument values are expanded. For example, `"$FILES"` expands, but `"--files=$FILES"` is passed through unchanged.
+For example, `"$FILES"` expands to the assigned files, and `"--files=$FILES"` expands to one prefixed argument per assigned file.
 
 ### JSON Schema
 

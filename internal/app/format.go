@@ -217,13 +217,20 @@ func expandCommandArguments(command []string, files []string, workingDirectory s
 	foundFiles := false
 
 	for _, arg := range command {
-		switch arg {
-		case "$FILES":
+		switch {
+		case arg == "$FILES":
 			foundFiles = true
 			argv = append(argv, files...)
-		case "$WORKING_DIRECTORY":
+		case strings.Contains(arg, "$FILES"):
+			foundFiles = true
+			for _, file := range files {
+				argv = append(argv, strings.ReplaceAll(arg, "$FILES", file))
+			}
+		case arg == "$WORKING_DIRECTORY":
 			argv = append(argv, workingDirectory)
-		case "$FILE":
+		case strings.Contains(arg, "$WORKING_DIRECTORY"):
+			argv = append(argv, strings.ReplaceAll(arg, "$WORKING_DIRECTORY", workingDirectory))
+		case strings.Contains(arg, "$FILE"):
 			return nil, fmt.Errorf("[in app.expandCommandArguments] reject unsupported $FILE placeholder because only $FILES is supported")
 		default:
 			argv = append(argv, arg)

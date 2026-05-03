@@ -13,6 +13,7 @@ import (
 
 func main() {
 	loggerConfig := &app.LoggerConfig{Logger: app.NewLogger(os.Stdout)}
+	defer loggerConfig.Close()
 
 	logToFileFlag := &cli.BoolFlag{
 		Name:  "log-to-file",
@@ -58,12 +59,6 @@ func main() {
 
 			loggerConfig = configuredLogger
 			return ctx, nil
-		},
-		After: func(_ context.Context, _ *cli.Command) error {
-			if err := loggerConfig.Close(); err != nil {
-				return fmt.Errorf("[in main.main] close logger after running format command: %w", err)
-			}
-			return nil
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return app.Format(loggerConfig.Logger)(ctx, cmd)

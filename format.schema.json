@@ -68,14 +68,14 @@
         },
         "command": {
           "type": "array",
-          "description": "Executable and arguments used to invoke the formatter. Include $FILES where the assigned files should be expanded. Use $WORKING_DIRECTORY to pass the resolved process working directory as one argument.",
+          "description": "Executable and arguments used to invoke the formatter. Include $FILES where the assigned files should be expanded. Use $WORKING_DIRECTORY to pass the resolved process working directory.",
           "minItems": 1,
           "items": {
             "type": "string",
             "minLength": 1
           },
           "contains": {
-            "const": "$FILES"
+            "pattern": "\\$FILES"
           }
         }
       }
