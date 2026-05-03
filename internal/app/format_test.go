@@ -51,45 +51,45 @@ func TestExpandCommandArguments(t *testing.T) {
 			want:             []string{"tool", "--cwd=/repo", "/repo/a.go"},
 		},
 		"expands first file basename placeholder as one argument": {
-			command:          []string{"tool", "--settings", "$FIRST_FILE_BASENAME(*.DotSettings)", "$FILES"},
+			command:          []string{"tool", "--settings", "$GLOB_FIRST_BASENAME(*.DotSettings)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			want:             []string{"tool", "--settings", "A.DotSettings", "/repo/a.cs"},
 		},
 		"expands embedded first file basename placeholder": {
-			command:          []string{"tool", "--settings=$FIRST_FILE_BASENAME(*.DotSettings)", "$FILES"},
+			command:          []string{"tool", "--settings=$GLOB_FIRST_BASENAME(*.DotSettings)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			want:             []string{"tool", "--settings=A.DotSettings", "/repo/a.cs"},
 		},
 		"expands multiple first file basename placeholders": {
-			command:          []string{"tool", "$FIRST_FILE_BASENAME(*.DotSettings):$FIRST_FILE_BASENAME(src/*.DotSettings)", "$FILES"},
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME(*.DotSettings):$GLOB_FIRST_BASENAME(src/*.DotSettings)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			want:             []string{"tool", "A.DotSettings:Nested.DotSettings", "/repo/a.cs"},
 		},
 		"rejects invalid first file basename glob": {
-			command:          []string{"tool", "$FIRST_FILE_BASENAME([)", "$FILES"},
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME([)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			wantErr:          true,
 		},
 		"rejects unmatched first file basename glob": {
-			command:          []string{"tool", "$FIRST_FILE_BASENAME(*.missing)", "$FILES"},
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME(*.missing)", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			wantErr:          true,
 		},
 		"rejects malformed first file basename placeholder": {
-			command:          []string{"tool", "$FIRST_FILE_BASENAME()", "$FILES"},
+			command:          []string{"tool", "$GLOB_FIRST_BASENAME()", "$FILES"},
 			files:            []string{"/repo/a.cs"},
 			workingDirectory: workingDirectory,
 			wantErr:          true,
 		},
-		"rejects missing files placeholder": {
+		"allows command without files placeholder": {
 			command: []string{"tool"},
 			files:   []string{"/repo/a.go"},
-			wantErr: true,
+			want:    []string{"tool"},
 		},
 		"rejects singular file placeholder": {
 			command: []string{"tool", "$FILE"},
