@@ -1,0 +1,88 @@
+{
+  "$schema": "./format.schema.json",
+  "version": 1,
+  "matchPolicy": "all",
+  "exclude": [
+    ".git/**",
+    "node_modules/**",
+    "dist/**",
+    "build/**",
+    "bin/**",
+    "obj/**"
+  ],
+  "formatters": [
+    {
+      "name": "prettier",
+      "patterns": [
+        "**/*.js",
+        "**/*.ts",
+        "**/*.jsx",
+        "**/*.tsx",
+        "**/*.json",
+        "**/*.md",
+        "**/*.yaml",
+        "**/*.yml"
+      ],
+      "exclude": [
+        "package-lock.json",
+        "pnpm-lock.yaml"
+      ],
+      "command": [
+        "prettier",
+        "--write",
+        "$files"
+      ]
+    },
+    {
+      "name": "gofmt",
+      "patterns": [
+        "**/*.go"
+      ],
+      "command": [
+        "gofmt",
+        "-w",
+        "$files"
+      ]
+    },
+    {
+      "name": "dotnet-format",
+      "patterns": [
+        "**/*.cs"
+      ],
+      "exclude": [
+        "**/*.g.cs",
+        "**/Generated/**/*.cs"
+      ],
+      "command": [
+        "dotnet",
+        "format",
+        "--include",
+        "$files"
+      ]
+    },
+    {
+      "name": "rustfmt",
+      "patterns": [
+        "**/*.rs"
+      ],
+      "command": [
+        "rustfmt",
+        "$files"
+      ]
+    },
+    {
+      "name": "clang-format",
+      "patterns": [
+        "**/*.c",
+        "**/*.h",
+        "**/*.cpp",
+        "**/*.hpp"
+      ],
+      "command": [
+        "clang-format",
+        "-i",
+        "$files"
+      ]
+    }
+  ]
+}
