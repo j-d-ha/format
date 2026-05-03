@@ -54,6 +54,13 @@ Currently supported:
 
 ```sh
 format hook codex
+format hook generic-patch
+```
+
+Place global flags before subcommands:
+
+```sh
+format --log-level debug hook codex
 ```
 
 #### `format hook codex`
@@ -93,6 +100,21 @@ format --log-level debug hook codex
 ```
 
 If `stdin` is empty or no edited files are found, command exits successfully without running formatters.
+
+#### `format hook generic-patch`
+
+Reads raw apply-patch text from `stdin`, extracts edited files from the same patch headers, and formats those files.
+
+```sh
+format hook generic-patch
+```
+
+Unlike `format hook codex`, this command does not log to file by default because raw patch input has no harness session metadata. Use normal logging flags when needed:
+
+```sh
+format --log-to-file --log-session-id patch-run hook generic-patch
+format --log-file ./logs/patch-format.log hook generic-patch
+```
 
 ## Configuration
 
@@ -229,6 +251,12 @@ Format files from a Codex hook payload on stdin:
 
 ```sh
 format --log-level debug hook codex
+```
+
+Format files from raw apply-patch text on stdin:
+
+```sh
+format hook generic-patch
 ```
 
 ## Logging

@@ -35,6 +35,19 @@ func TestParseApplyPatchEditedFiles(t *testing.T) {
 	}
 }
 
+func TestParseGenericPatchHookInput(t *testing.T) {
+	raw := []byte("*** Update File: a.go\n*** Add File: b.md")
+	got, err := ParseGenericPatchHookInput(raw)
+	if err != nil {
+		t.Fatalf("ParseGenericPatchHookInput() error = %v, want nil", err)
+	}
+
+	want := HookInput{Files: []string{"a.go", "b.md"}}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("ParseGenericPatchHookInput() = %v, want %v", got, want)
+	}
+}
+
 func TestParseCodexHookInput(t *testing.T) {
 	tests := map[string]struct {
 		raw     []byte

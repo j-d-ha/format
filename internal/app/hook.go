@@ -13,6 +13,12 @@ type HookInput struct {
 	SessionID string
 }
 
+// ParseGenericPatchHookInput extracts edited file paths from raw apply-patch
+// command text.
+func ParseGenericPatchHookInput(raw []byte) (HookInput, error) {
+	return HookInput{Files: ParseApplyPatchEditedFiles(string(raw))}, nil
+}
+
 // ParseCodexHookInput extracts edited file paths and session metadata from a
 // Codex hook JSON payload.
 func ParseCodexHookInput(raw []byte) (HookInput, error) {
