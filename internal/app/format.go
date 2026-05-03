@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -280,36 +281,84 @@ func resolveWorkingDirectory(path string) (string, error) {
 	return abs, nil
 }
 
+const globFirstBasenamePrefix = "$GLOB_FIRST_BASENAME("
+
 // expandCommandArguments replaces supported placeholder arguments in command.
 func expandCommandArguments(command []string, files []string, workingDirectory string, filesDelimiter string) ([]string, error) {
 	argv := make([]string, 0, len(command))
-	foundFiles := false
 	joinedFiles := strings.Join(files, effectiveFilesDelimiter(filesDelimiter))
 
 	for _, arg := range command {
-		switch {
-		case arg == "$FILES":
-			foundFiles = true
-			argv = append(argv, joinedFiles)
-		case strings.Contains(arg, "$FILES"):
-			foundFiles = true
-			argv = append(argv, strings.ReplaceAll(arg, "$FILES", joinedFiles))
-		case arg == "$WORKING_DIRECTORY":
-			argv = append(argv, workingDirectory)
-		case strings.Contains(arg, "$WORKING_DIRECTORY"):
-			argv = append(argv, strings.ReplaceAll(arg, "$WORKING_DIRECTORY", workingDirectory))
-		case strings.Contains(arg, "$FILE"):
-			return nil, fmt.Errorf("[in app.expandCommandArguments] reject unsupported $FILE placeholder because only $FILES is supported")
-		default:
-			argv = append(argv, arg)
+		expandedArg, err := expandCommandArgument(arg, joinedFiles, workingDirectory)
+		if err != nil {
+			return nil, fmt.Errorf("[in app.expandCommandArguments] expand command argument %q: %w", arg, err)
 		}
-	}
 
-	if !foundFiles {
-		return nil, fmt.Errorf("[in app.expandCommandArguments] reject command because it does not contain required $FILES placeholder")
+		argv = append(argv, expandedArg)
 	}
 
 	return argv, nil
+}
+
+// expandCommandArgument replaces supported placeholders in one command argument.
+func expandCommandArgument(arg string, joinedFiles string, workingDirectory string) (string, error) {
+	var expanded strings.Builder
+	remaining := arg
+	for {
+		before, after, found := strings.Cut(remaining, globFirstBasenamePrefix)
+		text, err := expandSimplePlaceholders(before, joinedFiles, workingDirectory)
+		if err != nil {
+			return "", err
+		}
+		expanded.WriteString(text)
+		if !found {
+			break
+		}
+
+		pattern, rest, closed := strings.Cut(after, ")")
+		if !closed || pattern == "" {
+			return "", fmt.Errorf("[in app.expandCommandArgument] reject malformed $GLOB_FIRST_BASENAME placeholder in argument %q", arg)
+		}
+
+		basename, err := globFirstBasename(workingDirectory, pattern)
+		if err != nil {
+			return "", err
+		}
+		expanded.WriteString(basename)
+		remaining = rest
+	}
+
+	return expanded.String(), nil
+}
+
+// expandSimplePlaceholders replaces non-function placeholders in text.
+func expandSimplePlaceholders(text string, joinedFiles string, workingDirectory string) (string, error) {
+	if strings.Contains(text, "$FILE") && !strings.Contains(text, "$FILES") {
+		return "", fmt.Errorf("[in app.expandSimplePlaceholders] reject unsupported $FILE placeholder because only $FILES is supported")
+	}
+
+	text = strings.ReplaceAll(text, "$FILES", joinedFiles)
+	text = strings.ReplaceAll(text, "$WORKING_DIRECTORY", workingDirectory)
+	if strings.Contains(text, "$FILE") {
+		return "", fmt.Errorf("[in app.expandSimplePlaceholders] reject unsupported $FILE placeholder because only $FILES is supported")
+	}
+
+	return text, nil
+}
+
+// globFirstBasename returns basename of first deterministic glob match.
+func globFirstBasename(workingDirectory string, pattern string) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(workingDirectory, pattern))
+	if err != nil {
+		return "", fmt.Errorf("[in app.globFirstBasename] resolve glob %q relative to working directory %q: %w", pattern, workingDirectory, err)
+	}
+	if len(matches) == 0 {
+		return "", fmt.Errorf("[in app.globFirstBasename] resolve glob %q relative to working directory %q because no files matched", pattern, workingDirectory)
+	}
+
+	sort.Strings(matches)
+
+	return filepath.Base(matches[0]), nil
 }
 
 // effectiveFilesDelimiter returns the delimiter used to join files for $FILES.
