@@ -39,6 +39,9 @@ var configValidator = validator.New(validator.WithRequiredStructEnabled())
 
 // Config describes the top-level format.json configuration file.
 type Config struct {
+	// Schema optionally identifies a JSON schema used by editors and tooling.
+	Schema string `json:"$schema,omitempty"`
+
 	// Version is the configuration schema version.
 	Version int `json:"version" validate:"gt=0"`
 
