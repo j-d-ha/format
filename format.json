@@ -28,18 +28,19 @@
         "pnpm-lock.yaml"
       ],
       "command": [
+        "bunx",
         "prettier",
         "--write",
         "$FILES"
       ]
     },
     {
-      "name": "gofmt",
+      "name": "gofumpt",
       "patterns": [
         "**/*.go"
       ],
       "command": [
-        "gofmt",
+        "gofumpt",
         "-w",
         "$FILES"
       ]

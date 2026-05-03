@@ -4,6 +4,37 @@
 
 It is useful when a project contains multiple languages and you want one command to run the right formatter for each file you pass in.
 
+## Pi global auto-format extension
+
+This repository includes a Pi extension that formats files after Pi edits them with `write` or `edit`.
+
+Install globally:
+
+```sh
+mkdir -p ~/.pi/agent/extensions
+cp pi/format-extension.ts ~/.pi/agent/extensions/format.ts
+```
+
+Reload Pi with `/reload`, or restart Pi. The extension calls:
+
+```sh
+format --log-level debug --log-to-file --log-session-id <pi-session-id> files <edited-files...>
+```
+
+Optional environment variables:
+
+```sh
+PI_FORMAT_COMMAND=/path/to/format PI_FORMAT_DEBOUNCE_MS=1000 PI_FORMAT_LOG_LEVEL=info pi
+PI_FORMAT_LOG_FILE=/tmp/pi-format.log pi
+```
+
+Manual flush / explicit format inside Pi:
+
+```text
+/format
+/format README.md internal/app/format.go
+```
+
 ## Usage
 
 ```text
@@ -21,6 +52,8 @@ COMMANDS:
 GLOBAL OPTIONS:
    --config string, -c string  path to a config file; defaults to ./format.json, then the user config directory
    --log-level string          minimum log level to write (debug, info, warn, error) (default: "warn")
+   --log-project string        project name to include in generated log file paths
+   --log-runner string         runner name to include in generated log file paths
    --log-session-id string     session identifier to include in generated log file names
    --help, -h                  show help
    --log-to-file               write logs to a generated log file
@@ -88,13 +121,13 @@ format hook codex
 Codex hook logging defaults to generated file logs even when `--log-to-file` is not passed. If `session_id` is present, log path becomes:
 
 ```text
-.format/logs/format-<session_id>-formatter.log
+~/Library/Logs/format/<project>/codex/format-<session_id>.log
 ```
 
 Overrides:
 
 ```sh
-format --log-session-id my-session hook codex
+format --log-project my-api --log-session-id my-session hook codex
 format --log-file ./.codex/logs/format.log hook codex
 format --log-level debug hook codex
 ```
@@ -137,12 +170,7 @@ A config file contains global excludes and an ordered list of formatter definiti
 {
   "version": 1,
   "matchPolicy": "first",
-  "exclude": [
-    ".git/**",
-    "node_modules/**",
-    "dist/**",
-    "build/**"
-  ],
+  "exclude": [".git/**", "node_modules/**", "dist/**", "build/**"],
   "workingDirectory": ".",
   "formatters": [
     {
@@ -183,12 +211,12 @@ Each formatter supports:
 
 Formatter commands are configured as an argv array; each JSON string becomes one process argument unless it contains one of the supported placeholders below.
 
-| Placeholder | Required | Expands to | Notes |
-| --- | --- | --- | --- |
-| `$FILES` | No | One argument containing file paths joined by the formatter's `filesDelimiter`. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. `filesDelimiter` defaults to a single space and can be set to values such as `,`, `, `, or `;`. Embedded placeholders are supported, so `--include=$FILES` becomes one `--include=<joined-files>` argument. |
-| `$WORKING_DIRECTORY` | No | The resolved process working directory as one argument. | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. Embedded placeholders are supported. |
-| `$GLOB_FIRST_BASENAME(<glob>)` | No | Basename of the first deterministic match for `<glob>`. | Glob resolves relative to the formatter working directory. Matches are sorted before choosing the first. Embedded placeholders are supported, so `--settings=$GLOB_FIRST_BASENAME(*.DotSettings)` becomes `--settings=<file>.DotSettings`. Invalid or unmatched globs fail the command. |
-| `$FILE` | No | Nothing. | Unsupported; commands using it are rejected. Use `$FILES` instead. |
+| Placeholder                    | Required | Expands to                                                                     | Notes                                                                                                                                                                                                                                                                                                                          |
+| ------------------------------ | -------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `$FILES`                       | No       | One argument containing file paths joined by the formatter's `filesDelimiter`. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. `filesDelimiter` defaults to a single space and can be set to values such as `,`, `, `, or `;`. Embedded placeholders are supported, so `--include=$FILES` becomes one `--include=<joined-files>` argument. |
+| `$WORKING_DIRECTORY`           | No       | The resolved process working directory as one argument.                        | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. Embedded placeholders are supported.                                                                                                                                |
+| `$GLOB_FIRST_BASENAME(<glob>)` | No       | Basename of the first deterministic match for `<glob>`.                        | Glob resolves relative to the formatter working directory. Matches are sorted before choosing the first. Embedded placeholders are supported, so `--settings=$GLOB_FIRST_BASENAME(*.DotSettings)` becomes `--settings=<file>.DotSettings`. Invalid or unmatched globs fail the command.                                        |
+| `$FILE`                        | No       | Nothing.                                                                       | Unsupported; commands using it are rejected. Use `$FILES` instead.                                                                                                                                                                                                                                                             |
 
 For example, with the default delimiter, `"$FILES"` expands to `"/repo/a.go /repo/b.go"`. With `"filesDelimiter": ","`, `"--files=$FILES"` expands to `"--files=/repo/a.go,/repo/b.go"`. `"--settings=$GLOB_FIRST_BASENAME(*.DotSettings)"` resolves the glob from the formatter working directory and expands to the basename of the first sorted match.
 
@@ -239,8 +267,28 @@ format --log-level debug main.go
 Write logs to a generated log file:
 
 ```sh
-format --log-to-file --log-session-id local-run main.go README.md
+format --log-to-file --log-project my-api --log-session-id local-run main.go README.md
 ```
+
+Generated log path shape:
+
+```text
+<log-base>/<project>/<runner>/format-<session-id>.log
+```
+
+Default log bases:
+
+- macOS: `~/Library/Logs/format`
+- Linux: `${XDG_STATE_HOME}/format/logs` or `~/.local/state/format/logs`
+- Windows: `%LOCALAPPDATA%\\format\\Logs`
+
+Generated log identity precedence:
+
+- project: `--log-project`, `FORMAT_PROJECT`, Git root folder name, current directory name, `unknown`
+- runner: `--log-runner`, `FORMAT_RUNNER`, hook default such as `codex`, then `cli`
+- session: `--log-session-id`, `FORMAT_SESSION_ID`, hook payload session, then `YYYYMMDDTHHMMSSZ-pid`
+
+Set `FORMAT_LOG_DIR` to override the generated log base directory.
 
 Write logs to a specific file:
 
@@ -273,7 +321,7 @@ Supported log levels are:
 
 Use `--log-level info` to see high-level progress: config loaded, file matching summary, selected formatters, formatter completion, and total duration. Use `--log-level debug` when troubleshooting matching or command invocation; debug logs include config search paths, original CLI arguments, per-file match decisions, full formatter argv, and captured formatter stdout/stderr.
 
-Use `--log-to-file` to write logs to a generated log file, or `--log-file` to choose the exact path. These two flags are mutually exclusive.
+Use `--log-to-file` to write logs to a generated log file, or `--log-file` to choose the exact path. These two flags are mutually exclusive. Generated log records include `project`, `runner`, `sessionID`, `cwd`, and `gitRoot` when available.
 
 ## Notes
 
