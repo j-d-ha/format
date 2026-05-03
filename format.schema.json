@@ -18,9 +18,9 @@
     },
     "matchPolicy": {
       "type": "string",
-      "description": "Controls how formatter matches are applied.",
-      "enum": ["all", "first"],
-      "default": "all"
+      "description": "Controls how formatter matches are applied. Defaults to first so formatter order is respected when patterns overlap.",
+      "enum": ["first", "all"],
+      "default": "first"
     },
     "exclude": {
       "$ref": "#/$defs/globPatterns",

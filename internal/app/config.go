@@ -45,9 +45,9 @@ type Config struct {
 	// Version is the configuration schema version.
 	Version int `json:"version" validate:"gt=0"`
 
-	// MatchPolicy controls how formatter matches are applied. Common values are
-	// "all" to run every matching formatter and "first" to run only the first
-	// matching formatter.
+	// MatchPolicy controls how formatter matches are applied. It defaults to
+	// "first" so formatter order is respected when patterns overlap. Use "all"
+	// to run every matching formatter.
 	MatchPolicy string `json:"matchPolicy" validate:"omitempty,oneof=all first"`
 
 	// Exclude contains global glob patterns that should be ignored before any

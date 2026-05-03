@@ -1,6 +1,7 @@
 package app
 
 import (
+	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -129,6 +130,34 @@ func TestExpandCommandArguments(t *testing.T) {
 				t.Fatalf("expandCommandArguments() = %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+func TestGroupFilesByFormatterRespectsFirstMatchOrder(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	file := filepath.Join(cwd, "site", "docs", "guide.md")
+	writeTestFile(t, file)
+
+	cfg := &Config{
+		Formatters: []Formatter{
+			{Name: "docs", Patterns: []string{"*/docs/*.md"}},
+			{Name: "markdown", Patterns: []string{"**/*.md"}},
+		},
+	}
+
+	groups, stats, err := groupFilesByFormatter(slog.Default(), cfg, []string{file})
+	if err != nil {
+		t.Fatalf("groupFilesByFormatter() error = %v, want nil", err)
+	}
+	if stats.matchedFileCount != 1 {
+		t.Fatalf("matchedFileCount = %d, want 1", stats.matchedFileCount)
+	}
+	if got := groups[0].files; !reflect.DeepEqual(got, []string{file}) {
+		t.Fatalf("first formatter files = %v, want %v", got, []string{file})
+	}
+	if got := groups[1].files; len(got) != 0 {
+		t.Fatalf("second formatter files = %v, want empty", got)
 	}
 }
 
