@@ -19,80 +19,84 @@ import (
 // Format returns the CLI action that groups input files by configured formatter
 // patterns and runs each matching formatter with a $FILES expansion.
 func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
-	return func(ctx context.Context, cmd *cli.Command) (err error) {
-		startedAt := time.Now()
-		status := "completed"
-		formatterRunCount := 0
-		defer func() {
-			if err != nil {
-				status = "failed"
-			}
-			logger.Info("Format completed", slog.String("status", status), slog.Duration("duration", time.Since(startedAt)), slog.Int("formatterRunCount", formatterRunCount))
-		}()
-
-		args := cmd.Args().Slice()
-		logger.Debug("CLI arguments received", slog.Int("argumentCount", len(args)), slog.Any("arguments", args))
-
-		requestedConfigPath := cmd.String(ConfigFlagName)
-		if requestedConfigPath != "" {
-			logger.Debug("Looking for config", slog.String("path", requestedConfigPath), slog.Bool("explicit", true))
-		} else if globalConfigPath, err := GlobalConfigPath(); err == nil {
-			logger.Debug("Looking for config", slog.Any("paths", []string{DefaultConfigPath, globalConfigPath}), slog.Bool("explicit", false))
-		}
-
-		cfg, configPath, err := LoadConfigForPath(requestedConfigPath)
-		if err != nil {
-			return fmt.Errorf("[in app.Format] load config before grouping input files by formatter: %w", err)
-		}
-
-		logger.Info("Config loaded", slog.String("path", configPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
-
-		files, invalidFileCount := validateFileArguments(logger, args)
-		logger.Info("Format started", slog.Int("requestedFileCount", len(args)), slog.Int("validFileCount", len(files)), slog.Int("invalidFileCount", invalidFileCount))
-
-		groups, stats, err := groupFilesByFormatter(logger, cfg, files)
-		if err != nil {
-			return fmt.Errorf("[in app.Format] group input files by formatter patterns before running commands: %w", err)
-		}
-
-		logger.Info("Files matched", slog.Int("formatterCount", stats.matchedFormatterCount), slog.Int("matchedFileCount", stats.matchedFileCount), slog.Int("unmatchedFileCount", stats.unmatchedFileCount), slog.Int("excludedFileCount", stats.excludedFileCount))
-		if stats.unmatchedFileCount > 0 {
-			logger.Warn("Some files did not match any formatter", slog.Int("unmatchedFileCount", stats.unmatchedFileCount))
-		}
-
-		for _, group := range groups {
-			if len(group.files) == 0 {
-				continue
-			}
-
-			logger.Info("Formatter selected", slog.String("formatter", group.formatter.Name), slog.Int("fileCount", len(group.files)))
-
-			workingDirectory, err := resolveWorkingDirectory(effectiveWorkingDirectory(cfg, group.formatter))
-			if err != nil {
-				return fmt.Errorf("[in app.Format] resolve formatter %q working directory before expanding command: %w", group.formatter.Name, err)
-			}
-
-			argv, err := expandCommandArguments(group.formatter.Command, group.files, workingDirectory, group.formatter.FilesDelimiter)
-			if err != nil {
-				return fmt.Errorf("[in app.Format] expand formatter %q command with grouped files and working directory: %w", group.formatter.Name, err)
-			}
-
-			logger.Info("Running formatter", slog.String("formatter", group.formatter.Name), slog.String("workingDirectory", workingDirectory), slog.String("executable", argv[0]), slog.Int("argumentCount", len(argv)-1), slog.Int("fileCount", len(group.files)))
-			logger.Debug("Formatter argv", slog.String("formatter", group.formatter.Name), slog.Any("argv", argv))
-			formatterStartedAt := time.Now()
-			if err := runFormatter(ctx, logger, group.formatter.Name, argv, workingDirectory); err != nil {
-				logger.Info("Formatter finished", slog.String("formatter", group.formatter.Name), slog.String("status", "failed"), slog.Duration("duration", time.Since(formatterStartedAt)))
-				return fmt.Errorf("[in app.Format] run formatter %q on matched files: %w", group.formatter.Name, err)
-			}
-			formatterRunCount++
-			logger.Info("Formatter completed", slog.String("formatter", group.formatter.Name), slog.Duration("duration", time.Since(formatterStartedAt)))
-		}
-
-		if formatterRunCount == 0 {
-			logger.Warn("No formatter commands were run", slog.Int("validFileCount", len(files)), slog.Int("matchedFileCount", stats.matchedFileCount), slog.Int("unmatchedFileCount", stats.unmatchedFileCount), slog.Int("excludedFileCount", stats.excludedFileCount))
-		}
-		return nil
+	return func(ctx context.Context, cmd *cli.Command) error {
+		return FormatFiles(ctx, logger, cmd.String(ConfigFlagName), cmd.Args().Slice())
 	}
+}
+
+// FormatFiles groups input files by configured formatter patterns and runs each
+// matching formatter with a $FILES expansion.
+func FormatFiles(ctx context.Context, logger *slog.Logger, requestedConfigPath string, args []string) (err error) {
+	startedAt := time.Now()
+	status := "completed"
+	formatterRunCount := 0
+	defer func() {
+		if err != nil {
+			status = "failed"
+		}
+		logger.Info("Format completed", slog.String("status", status), slog.Duration("duration", time.Since(startedAt)), slog.Int("formatterRunCount", formatterRunCount))
+	}()
+
+	logger.Debug("File arguments received", slog.Int("argumentCount", len(args)), slog.Any("arguments", args))
+
+	if requestedConfigPath != "" {
+		logger.Debug("Looking for config", slog.String("path", requestedConfigPath), slog.Bool("explicit", true))
+	} else if globalConfigPath, err := GlobalConfigPath(); err == nil {
+		logger.Debug("Looking for config", slog.Any("paths", []string{DefaultConfigPath, globalConfigPath}), slog.Bool("explicit", false))
+	}
+
+	cfg, configPath, err := LoadConfigForPath(requestedConfigPath)
+	if err != nil {
+		return fmt.Errorf("[in app.Format] load config before grouping input files by formatter: %w", err)
+	}
+
+	logger.Info("Config loaded", slog.String("path", configPath), slog.Int("formatterCount", len(cfg.Formatters)), slog.String("matchPolicy", cfg.MatchPolicy))
+
+	files, invalidFileCount := validateFileArguments(logger, args)
+	logger.Info("Format started", slog.Int("requestedFileCount", len(args)), slog.Int("validFileCount", len(files)), slog.Int("invalidFileCount", invalidFileCount))
+
+	groups, stats, err := groupFilesByFormatter(logger, cfg, files)
+	if err != nil {
+		return fmt.Errorf("[in app.Format] group input files by formatter patterns before running commands: %w", err)
+	}
+
+	logger.Info("Files matched", slog.Int("formatterCount", stats.matchedFormatterCount), slog.Int("matchedFileCount", stats.matchedFileCount), slog.Int("unmatchedFileCount", stats.unmatchedFileCount), slog.Int("excludedFileCount", stats.excludedFileCount))
+	if stats.unmatchedFileCount > 0 {
+		logger.Warn("Some files did not match any formatter", slog.Int("unmatchedFileCount", stats.unmatchedFileCount))
+	}
+
+	for _, group := range groups {
+		if len(group.files) == 0 {
+			continue
+		}
+
+		logger.Info("Formatter selected", slog.String("formatter", group.formatter.Name), slog.Int("fileCount", len(group.files)))
+
+		workingDirectory, err := resolveWorkingDirectory(effectiveWorkingDirectory(cfg, group.formatter))
+		if err != nil {
+			return fmt.Errorf("[in app.Format] resolve formatter %q working directory before expanding command: %w", group.formatter.Name, err)
+		}
+
+		argv, err := expandCommandArguments(group.formatter.Command, group.files, workingDirectory, group.formatter.FilesDelimiter)
+		if err != nil {
+			return fmt.Errorf("[in app.Format] expand formatter %q command with grouped files and working directory: %w", group.formatter.Name, err)
+		}
+
+		logger.Info("Running formatter", slog.String("formatter", group.formatter.Name), slog.String("workingDirectory", workingDirectory), slog.String("executable", argv[0]), slog.Int("argumentCount", len(argv)-1), slog.Int("fileCount", len(group.files)))
+		logger.Debug("Formatter argv", slog.String("formatter", group.formatter.Name), slog.Any("argv", argv))
+		formatterStartedAt := time.Now()
+		if err := runFormatter(ctx, logger, group.formatter.Name, argv, workingDirectory); err != nil {
+			logger.Info("Formatter finished", slog.String("formatter", group.formatter.Name), slog.String("status", "failed"), slog.Duration("duration", time.Since(formatterStartedAt)))
+			return fmt.Errorf("[in app.Format] run formatter %q on matched files: %w", group.formatter.Name, err)
+		}
+		formatterRunCount++
+		logger.Info("Formatter completed", slog.String("formatter", group.formatter.Name), slog.Duration("duration", time.Since(formatterStartedAt)))
+	}
+
+	if formatterRunCount == 0 {
+		logger.Warn("No formatter commands were run", slog.Int("validFileCount", len(files)), slog.Int("matchedFileCount", stats.matchedFileCount), slog.Int("unmatchedFileCount", stats.unmatchedFileCount), slog.Int("excludedFileCount", stats.excludedFileCount))
+	}
+	return nil
 }
 
 // validateFileArguments returns only CLI arguments that identify existing files

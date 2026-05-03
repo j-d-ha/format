@@ -57,9 +57,14 @@ func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
 		return &LoggerConfig{Logger: NewLoggerWithLevel(os.Stdout, level)}, nil
 	}
 
-	file, err := openLogFile(logPath)
+	return ConfigureFileLogger(logPath, level)
+}
+
+// ConfigureFileLogger creates a logger that writes to path at level and above.
+func ConfigureFileLogger(path string, level slog.Level) (*LoggerConfig, error) {
+	file, err := openLogFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("[in app.ConfigureLogger] open log file so command logs can be persisted: %w", err)
+		return nil, fmt.Errorf("[in app.ConfigureFileLogger] open log file so command logs can be persisted: %w", err)
 	}
 
 	return &LoggerConfig{
