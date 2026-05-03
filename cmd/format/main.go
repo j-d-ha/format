@@ -13,7 +13,11 @@ import (
 
 func main() {
 	loggerConfig := &app.LoggerConfig{Logger: app.NewLogger(os.Stdout)}
-	defer loggerConfig.Close()
+	defer func() {
+		if err := loggerConfig.Close(); err != nil {
+			loggerConfig.Logger.Error("Error encountered", slog.String("error", err.Error()))
+		}
+	}()
 
 	logToFileFlag := &cli.BoolFlag{
 		Name:  "log-to-file",
