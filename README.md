@@ -11,7 +11,12 @@ NAME:
    format - Format source code
 
 USAGE:
-   format [global options]
+   format [global options] [command [command options]]
+
+COMMANDS:
+   files    Format explicit file arguments
+   hook     Format files from agent harness hook input
+   help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
    --config string, -c string  path to a config file; defaults to ./format.json, then the user config directory
@@ -22,13 +27,94 @@ GLOBAL OPTIONS:
    --log-file string           write logs to the specified file path
 ```
 
-Pass files as positional arguments:
+Pass files as positional arguments with either the root command or the explicit `files` subcommand:
 
 ```sh
 format main.go README.md package.json
+format files main.go README.md package.json
 ```
 
 Invalid file inputs are warned about and skipped, so one bad path does not stop the whole run.
+
+## Commands
+
+### `format files`
+
+Formats explicit file path arguments. This is the same behavior as the root command and is kept as a named command for scripts that prefer an explicit input source.
+
+```sh
+format files internal/app/format.go README.md
+```
+
+### `format hook`
+
+Formats files extracted from agent harness hook input. Harness-specific parsers live under this namespace so formatter configuration stays harness-agnostic.
+
+Currently supported:
+
+```sh
+format hook codex
+format hook apply-patch
+```
+
+Place global flags before subcommands:
+
+```sh
+format --log-level debug hook codex
+```
+
+#### `format hook codex`
+
+Reads Codex hook JSON from `stdin`, extracts:
+
+- `session_id` for generated log file names
+- `tool_input.command` for edited file paths
+
+The Codex parser scans `tool_input.command` for apply-patch file headers:
+
+```text
+*** Update File: path/to/file
+*** Add File: path/to/file
+```
+
+Then it formats those files through the same matcher and formatter engine used by `format files`.
+
+Example hook command:
+
+```sh
+format hook codex
+```
+
+Codex hook logging defaults to generated file logs even when `--log-to-file` is not passed. If `session_id` is present, log path becomes:
+
+```text
+.format/logs/format-<session_id>-formatter.log
+```
+
+Overrides:
+
+```sh
+format --log-session-id my-session hook codex
+format --log-file ./.codex/logs/format.log hook codex
+format --log-level debug hook codex
+```
+
+If `stdin` is empty or no edited files are found, command exits successfully without running formatters.
+
+#### `format hook apply-patch`
+
+Reads raw apply-patch text from `stdin`, extracts edited files from the same patch headers, and formats those files.
+
+```sh
+format hook apply-patch
+```
+
+Unlike `format hook codex`, this command does not log to file by default because raw patch input has no harness session metadata. Use normal logging flags when needed:
+
+```sh
+format --log-to-file --log-session-id patch-run hook apply-patch
+format --log-file ./logs/patch-format.log hook apply-patch
+```
 
 ## Configuration
 
@@ -134,6 +220,7 @@ Format Go and Markdown files using the default `format.json`:
 
 ```sh
 format internal/app/format.go README.md
+format files internal/app/format.go README.md
 ```
 
 Use a custom config file:
@@ -158,6 +245,18 @@ Write logs to a specific file:
 
 ```sh
 format --log-file ./logs/format.log main.go README.md
+```
+
+Format files from a Codex hook payload on stdin:
+
+```sh
+format --log-level debug hook codex
+```
+
+Format files from raw apply-patch text on stdin:
+
+```sh
+format hook apply-patch
 ```
 
 ## Logging

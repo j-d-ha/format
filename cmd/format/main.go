@@ -28,6 +28,65 @@ func main() {
 		Usage: "write logs to the specified file path",
 	}
 
+	configureLogger := func(cmd *cli.Command) error {
+		configuredLogger, err := app.ConfigureLogger(cmd)
+		if err != nil {
+			return fmt.Errorf("[in main.main] configure logger before running format command: %w", err)
+		}
+
+		loggerConfig = configuredLogger
+		return nil
+	}
+
+	formatFilesAction := func(ctx context.Context, cmd *cli.Command) error {
+		if err := configureLogger(cmd); err != nil {
+			return err
+		}
+
+		return app.Format(loggerConfig.Logger)(ctx, cmd)
+	}
+
+	hookAction := func(parser app.HookInputParser, defaultLogToFile bool) func(context.Context, *cli.Command) error {
+		return func(ctx context.Context, cmd *cli.Command) error {
+			loggerFactory := func(input app.HookInput) (*app.LoggerConfig, error) {
+				if !defaultLogToFile || cmd.IsSet("log-file") {
+					if err := configureLogger(cmd); err != nil {
+						return nil, err
+					}
+					return loggerConfig, nil
+				}
+
+				level, err := app.ParseLogLevel(cmd.String("log-level"))
+				if err != nil {
+					return nil, fmt.Errorf("[in main.main] parse log level before enabling hook file logging: %w", err)
+				}
+
+				sessionID := cmd.String("log-session-id")
+				if sessionID == "" {
+					sessionID = input.SessionID
+				}
+
+				return app.ConfigureFileLogger(app.GeneratedLogFileName(sessionID), level)
+			}
+
+			configuredLogger, err := app.FormatHook(ctx, loggerConfig.Logger, os.Stdin, cmd.String(app.ConfigFlagName), parser, loggerFactory)
+			if configuredLogger != nil {
+				loggerConfig = configuredLogger
+			}
+			return err
+		}
+	}
+
+	hookCommands := make([]*cli.Command, 0, len(app.HookSpecs()))
+	for _, spec := range app.HookSpecs() {
+		spec := spec
+		hookCommands = append(hookCommands, &cli.Command{
+			Name:   spec.Name,
+			Usage:  spec.Usage,
+			Action: hookAction(spec.Parser, spec.DefaultLogToFile),
+		})
+	}
+
 	cmd := &cli.Command{
 		Name:  "format",
 		Usage: "Format source code",
@@ -55,18 +114,19 @@ func main() {
 				},
 			},
 		},
-		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
-			configuredLogger, err := app.ConfigureLogger(cmd)
-			if err != nil {
-				return ctx, fmt.Errorf("[in main.main] configure logger before running format command: %w", err)
-			}
-
-			loggerConfig = configuredLogger
-			return ctx, nil
+		Commands: []*cli.Command{
+			{
+				Name:   "files",
+				Usage:  "Format explicit file arguments",
+				Action: formatFilesAction,
+			},
+			{
+				Name:     "hook",
+				Usage:    "Format files from agent harness hook input",
+				Commands: hookCommands,
+			},
 		},
-		Action: func(ctx context.Context, cmd *cli.Command) error {
-			return app.Format(loggerConfig.Logger)(ctx, cmd)
-		},
+		Action: formatFilesAction,
 	}
 
 	if err := cmd.Run(context.Background(), os.Args); err != nil {
