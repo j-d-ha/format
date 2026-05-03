@@ -79,6 +79,10 @@ type Formatter struct {
 	// directory.
 	WorkingDirectory string `json:"workingDirectory,omitempty"`
 
+	// FilesDelimiter joins file paths when expanding the $FILES placeholder. It
+	// defaults to a single space when omitted.
+	FilesDelimiter string `json:"filesDelimiter,omitempty"`
+
 	// Command is the executable and argv list used to invoke the formatter.
 	// Placeholder arguments such as "$FILES" and "$WORKING_DIRECTORY" are
 	// expanded by the formatter runner.

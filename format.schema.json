@@ -66,6 +66,11 @@
           "$ref": "#/$defs/workingDirectory",
           "description": "Formatter-specific process working directory. Overrides the top-level workingDirectory."
         },
+        "filesDelimiter": {
+          "type": "string",
+          "description": "Delimiter used to join file paths when expanding $FILES. Defaults to a single space.",
+          "default": " "
+        },
         "command": {
           "type": "array",
           "description": "Executable and arguments used to invoke the formatter. Include $FILES where the assigned files should be expanded. Use $WORKING_DIRECTORY to pass the resolved process working directory.",

@@ -11,13 +11,14 @@ func TestExpandCommandArguments(t *testing.T) {
 		command          []string
 		files            []string
 		workingDirectory string
+		filesDelimiter   string
 		want             []string
 		wantErr          bool
 	}{
-		"expands files as separate arguments": {
+		"expands files with default space delimiter": {
 			command: []string{"tool", "--write", "$FILES"},
 			files:   []string{"/repo/a.go", "/repo/b.go"},
-			want:    []string{"tool", "--write", "/repo/a.go", "/repo/b.go"},
+			want:    []string{"tool", "--write", "/repo/a.go /repo/b.go"},
 		},
 		"expands working directory as one argument": {
 			command:          []string{"tool", "--cwd", "$WORKING_DIRECTORY", "$FILES"},
@@ -25,10 +26,17 @@ func TestExpandCommandArguments(t *testing.T) {
 			workingDirectory: "/repo",
 			want:             []string{"tool", "--cwd", "/repo", "/repo/a.go"},
 		},
-		"expands embedded files placeholder once per file": {
-			command: []string{"tool", "--files=$FILES"},
-			files:   []string{"/repo/a.go", "/repo/b.go"},
-			want:    []string{"tool", "--files=/repo/a.go", "--files=/repo/b.go"},
+		"expands files with custom comma delimiter": {
+			command:        []string{"tool", "--files", "$FILES"},
+			files:          []string{"/repo/a.go", "/repo/b.go"},
+			filesDelimiter: ",",
+			want:           []string{"tool", "--files", "/repo/a.go,/repo/b.go"},
+		},
+		"expands embedded files placeholder as delimited list": {
+			command:        []string{"tool", "--files=$FILES"},
+			files:          []string{"/repo/a.go", "/repo/b.go"},
+			filesDelimiter: ";",
+			want:           []string{"tool", "--files=/repo/a.go;/repo/b.go"},
 		},
 		"expands embedded working directory placeholder": {
 			command:          []string{"tool", "--cwd=$WORKING_DIRECTORY", "$FILES"},
@@ -51,7 +59,7 @@ func TestExpandCommandArguments(t *testing.T) {
 	for name, tc := range tests {
 		name, tc := name, tc
 		t.Run(name, func(t *testing.T) {
-			got, err := expandCommandArguments(tc.command, tc.files, tc.workingDirectory)
+			got, err := expandCommandArguments(tc.command, tc.files, tc.workingDirectory, tc.filesDelimiter)
 			if tc.wantErr {
 				if err == nil {
 					t.Fatalf("expandCommandArguments() error = nil, want an error")

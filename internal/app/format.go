@@ -46,7 +46,7 @@ func Format(logger *slog.Logger) func(context.Context, *cli.Command) error {
 				return fmt.Errorf("[in app.Format] resolve formatter %q working directory before expanding command: %w", group.formatter.Name, err)
 			}
 
-			argv, err := expandCommandArguments(group.formatter.Command, group.files, workingDirectory)
+			argv, err := expandCommandArguments(group.formatter.Command, group.files, workingDirectory, group.formatter.FilesDelimiter)
 			if err != nil {
 				return fmt.Errorf("[in app.Format] expand formatter %q command with grouped files and working directory: %w", group.formatter.Name, err)
 			}
@@ -212,20 +212,19 @@ func resolveWorkingDirectory(path string) (string, error) {
 }
 
 // expandCommandArguments replaces supported placeholder arguments in command.
-func expandCommandArguments(command []string, files []string, workingDirectory string) ([]string, error) {
-	argv := make([]string, 0, len(command)+len(files))
+func expandCommandArguments(command []string, files []string, workingDirectory string, filesDelimiter string) ([]string, error) {
+	argv := make([]string, 0, len(command))
 	foundFiles := false
+	joinedFiles := strings.Join(files, effectiveFilesDelimiter(filesDelimiter))
 
 	for _, arg := range command {
 		switch {
 		case arg == "$FILES":
 			foundFiles = true
-			argv = append(argv, files...)
+			argv = append(argv, joinedFiles)
 		case strings.Contains(arg, "$FILES"):
 			foundFiles = true
-			for _, file := range files {
-				argv = append(argv, strings.ReplaceAll(arg, "$FILES", file))
-			}
+			argv = append(argv, strings.ReplaceAll(arg, "$FILES", joinedFiles))
 		case arg == "$WORKING_DIRECTORY":
 			argv = append(argv, workingDirectory)
 		case strings.Contains(arg, "$WORKING_DIRECTORY"):
@@ -242,6 +241,15 @@ func expandCommandArguments(command []string, files []string, workingDirectory s
 	}
 
 	return argv, nil
+}
+
+// effectiveFilesDelimiter returns the delimiter used to join files for $FILES.
+func effectiveFilesDelimiter(filesDelimiter string) string {
+	if filesDelimiter == "" {
+		return " "
+	}
+
+	return filesDelimiter
 }
 
 // runFormatter executes a formatter command, inheriting standard output and

@@ -90,6 +90,7 @@ Each formatter supports:
 - `patterns`: glob patterns matched against input files.
 - `exclude`: formatter-specific glob patterns to skip.
 - `workingDirectory`: optional formatter-specific process working directory. Overrides the top-level `workingDirectory`.
+- `filesDelimiter`: optional delimiter used to join matched files when expanding `$FILES`. Defaults to a single space.
 - `command`: formatter command and arguments. It must include the `$FILES` placeholder.
 
 ### Command expansion and working directory
@@ -98,11 +99,11 @@ Formatter commands are configured as an argv array; each JSON string becomes one
 
 | Placeholder | Required | Expands to | Notes |
 | --- | --- | --- | --- |
-| `$FILES` | Yes | One argument per file assigned to that formatter. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. Embedded placeholders expand once per file, so `--include=$FILES` becomes one `--include=<file>` argument per file. |
+| `$FILES` | Yes | One argument containing file paths joined by the formatter's `filesDelimiter`. | File paths are absolute, so they continue to work when `workingDirectory` changes the formatter process directory. `filesDelimiter` defaults to a single space and can be set to values such as `,`, `, `, or `;`. Embedded placeholders are supported, so `--include=$FILES` becomes one `--include=<joined-files>` argument. |
 | `$WORKING_DIRECTORY` | No | The resolved process working directory as one argument. | Uses the formatter-level `workingDirectory` when present, otherwise the top-level `workingDirectory`, otherwise the directory where `format` was launched. Embedded placeholders are supported. |
 | `$FILE` | No | Nothing. | Unsupported; commands using it are rejected. Use `$FILES` instead. |
 
-For example, `"$FILES"` expands to the assigned files, and `"--files=$FILES"` expands to one prefixed argument per assigned file.
+For example, with the default delimiter, `"$FILES"` expands to `"/repo/a.go /repo/b.go"`. With `"filesDelimiter": ","`, `"--files=$FILES"` expands to `"--files=/repo/a.go,/repo/b.go"`.
 
 ### JSON Schema
 
