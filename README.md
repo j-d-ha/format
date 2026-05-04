@@ -35,6 +35,67 @@ Manual flush / explicit format inside Pi:
 /format README.md internal/app/format.go
 ```
 
+## Claude Code hook setup
+
+Enable auto-formatting after Claude Code file edits by adding a project-local `PostToolUse` hook.
+
+Create or update `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "format hook claude"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Restart Claude Code, or reload settings. Make sure `format` is installed and on `PATH` for Claude Code.
+
+## Codex hook setup
+
+Enable Codex hooks, then add a project-local `PostToolUse` hook for `apply_patch` edits.
+
+Create or update `.codex/config.toml`:
+
+```toml
+[features]
+codex_hooks = true
+```
+
+Create or update `.codex/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "format hook codex",
+            "timeout": 30,
+            "statusMessage": "Formatting edited files"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Restart Codex after changing hook config. Trust project `.codex/` config when prompted. Make sure `format` is installed and on `PATH` for Codex.
+
 ## Usage
 
 ```text
