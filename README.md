@@ -50,7 +50,7 @@ COMMANDS:
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --config string, -c string  path to a config file; defaults to ./format.json, then the user config directory
+   --config string, -c string  path to a config file; defaults to ./format.json, then ~/.format/format.json
    --log-level string          minimum log level to write (debug, info, warn, error) (default: "warn")
    --log-project string        project name to include in generated log file paths
    --log-runner string         runner name to include in generated log file paths
@@ -189,7 +189,7 @@ format --log-file ./logs/patch-format.log hook apply-patch
 By default, `format` searches for configuration in this order:
 
 1. `./format.json`
-2. the user config directory at `format/format.json`
+2. `~/.format/format.json`
 
 You can also pass an explicit config file:
 

@@ -99,7 +99,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    app.ConfigFlagName,
 				Aliases: []string{"c"},
-				Usage:   "path to config file; defaults to ./format.json, then user config directory",
+				Usage:   "path to config file; defaults to ./format.json, then ~/.format/format.json",
 			},
 			&cli.StringFlag{
 				Name:  "log-level",
