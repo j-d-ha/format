@@ -16,12 +16,6 @@
       "description": "Configuration schema version.",
       "minimum": 1
     },
-    "matchPolicy": {
-      "type": "string",
-      "description": "Controls how formatter matches are applied. Defaults to first so formatter order is respected when patterns overlap.",
-      "enum": ["first", "all"],
-      "default": "first"
-    },
     "exclude": {
       "$ref": "#/$defs/globPatterns",
       "description": "Global glob patterns that are ignored before formatter-specific matching."

@@ -248,7 +248,6 @@ A config file contains global excludes and an ordered list of formatter definiti
 ```json
 {
   "version": 1,
-  "matchPolicy": "first",
   "exclude": [".git/**", "node_modules/**", "dist/**", "build/**"],
   "workingDirectory": ".",
   "formatters": [
@@ -270,9 +269,7 @@ A config file contains global excludes and an ordered list of formatter definiti
 ### Fields
 
 - `version`: configuration schema version. Must be greater than `0`.
-- `matchPolicy`: controls formatter matching behavior. Defaults to `first` when omitted:
-  - `first`: run only the first matching formatter for each file. Formatter order in `format.json` matters. If `*/docs/*.md` appears before `**/*.md`, then `site/docs/guide.md` runs only the `*/docs/*.md` formatter.
-  - `all`: run every formatter whose patterns match a file.
+- Formatter order matters. Each file is handled by the first formatter whose `patterns` match it.
 - `exclude`: global glob patterns to skip before formatter matching.
 - `workingDirectory`: default process working directory for formatter commands. If omitted, the current working directory used to launch `format` is used. Relative paths are resolved from that same current working directory.
 - `formatters`: ordered formatter definitions.
@@ -309,7 +306,6 @@ To enable schema support in a config file, add a `$schema` property that points 
 {
   "$schema": "https://raw.githubusercontent.com/j-d-ha/format/main/format.schema.json",
   "version": 1,
-  "matchPolicy": "first",
   "formatters": [
     {
       "name": "gofmt",

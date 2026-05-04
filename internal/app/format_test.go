@@ -161,6 +161,43 @@ func TestGroupFilesByFormatterRespectsFirstMatchOrder(t *testing.T) {
 	}
 }
 
+func TestGroupFilesByFormatterUsesCombinedExcludesForFirstMatch(t *testing.T) {
+	cwd := t.TempDir()
+	t.Chdir(cwd)
+	globalExcluded := filepath.Join(cwd, "dist", "app.js")
+	formatterExcluded := filepath.Join(cwd, "src", "generated.js")
+	fallbackCandidate := filepath.Join(cwd, "src", "generated.min.js")
+	matched := filepath.Join(cwd, "src", "app.js")
+	for _, file := range []string{globalExcluded, formatterExcluded, fallbackCandidate, matched} {
+		writeTestFile(t, file)
+	}
+
+	cfg := &Config{
+		Exclude: []string{"dist/**"},
+		Formatters: []Formatter{
+			{Name: "javascript", Patterns: []string{"**/*.js"}, Exclude: []string{"src/generated*.js"}},
+			{Name: "fallback", Patterns: []string{"**/*.js"}},
+		},
+	}
+
+	groups, stats, err := groupFilesByFormatter(slog.Default(), cfg, []string{globalExcluded, formatterExcluded, fallbackCandidate, matched})
+	if err != nil {
+		t.Fatalf("groupFilesByFormatter() error = %v, want nil", err)
+	}
+	if stats.excludedFileCount != 3 {
+		t.Fatalf("excludedFileCount = %d, want 3", stats.excludedFileCount)
+	}
+	if stats.matchedFileCount != 1 {
+		t.Fatalf("matchedFileCount = %d, want 1", stats.matchedFileCount)
+	}
+	if got := groups[0].files; !reflect.DeepEqual(got, []string{matched}) {
+		t.Fatalf("first formatter files = %v, want %v", got, []string{matched})
+	}
+	if got := groups[1].files; len(got) != 0 {
+		t.Fatalf("fallback formatter files = %v, want empty", got)
+	}
+}
+
 func writeTestFile(t *testing.T, pathElements ...string) {
 	t.Helper()
 

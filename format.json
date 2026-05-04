@@ -1,7 +1,6 @@
 {
   "$schema": "./format.schema.json",
   "version": 1,
-  "matchPolicy": "first",
   "exclude": [
     ".git/**",
     "node_modules/**",
