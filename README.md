@@ -4,36 +4,19 @@
 
 It is useful when a project contains multiple languages and you want one command to run the right formatter for each file you pass in.
 
-## Pi global auto-format extension
-
-This repository includes a Pi extension that formats files after Pi edits them with `write` or `edit`.
-
-Install globally:
+## Install
 
 ```sh
-mkdir -p ~/.pi/agent/extensions
-cp pi/format-extension.ts ~/.pi/agent/extensions/format.ts
+go install github.com/j-d-ha/format/cmd/format@latest
 ```
 
-Reload Pi with `/reload`, or restart Pi. The extension calls:
+Make sure your Go bin directory is on `PATH`:
 
 ```sh
-format --log-level debug --log-to-file --log-session-id <pi-session-id> files <edited-files...>
+export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-Optional environment variables:
-
-```sh
-PI_FORMAT_COMMAND=/path/to/format PI_FORMAT_DEBOUNCE_MS=1000 PI_FORMAT_LOG_LEVEL=info pi
-PI_FORMAT_LOG_FILE=/tmp/pi-format.log pi
-```
-
-Manual flush / explicit format inside Pi:
-
-```text
-/format
-/format README.md internal/app/format.go
-```
+Then add a project-local `format.json` or user config at `~/.format/format.json`.
 
 ## Claude Code hook setup
 
@@ -46,7 +29,7 @@ Create or update `.claude/settings.json`:
   "hooks": {
     "PostToolUse": [
       {
-        "matcher": "Write|Edit|MultiEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
@@ -59,7 +42,7 @@ Create or update `.claude/settings.json`:
 }
 ```
 
-Restart Claude Code, or reload settings. Make sure `format` is installed and on `PATH` for Claude Code.
+Restart Claude Code, or reload settings. Make sure `format` is installed and on `PATH` for Claude Code. If Claude Code cannot resolve shell profile changes, use an absolute command path such as `/Users/me/go/bin/format hook claude`.
 
 ## Codex hook setup
 
@@ -100,7 +83,7 @@ Restart Codex after changing hook config. Trust project `.codex/` config when pr
 
 ```text
 NAME:
-   format - Format source code
+   format - Format source files
 
 USAGE:
    format [global options] [command [command options]]
@@ -111,14 +94,14 @@ COMMANDS:
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --config string, -c string  path to a config file; defaults to ./format.json, then ~/.format/format.json
+   --config string, -c string  path to config file; defaults to ./format.json, then ~/.format/format.json
    --log-level string          minimum log level to write (debug, info, warn, error) (default: "warn")
-   --log-project string        project name to include in generated log file paths
-   --log-runner string         runner name to include in generated log file paths
-   --log-session-id string     session identifier to include in generated log file names
+   --log-project string        project name to include in generated log file paths; defaults to FORMAT_PROJECT, git root name, then cwd name
+   --log-runner string         runner name to include in generated log file paths; defaults to FORMAT_RUNNER, then cli
+   --log-session-id string     session identifier to include in generated log file names; defaults to FORMAT_SESSION_ID, then timestamp-pid
    --help, -h                  show help
-   --log-to-file               write logs to a generated log file
-   --log-file string           write logs to the specified file path
+   --log-to-file               write logs to generated log file
+   --log-file string           write logs to specified file path
 ```
 
 Pass files as positional arguments with either the root command or the explicit `files` subcommand:
@@ -351,7 +334,7 @@ format files internal/app/format.go README.md
 Use a custom config file:
 
 ```sh
-format -c ./format.json ./cmd/cli/main.go
+format -c ./format.json ./cmd/format/main.go
 ```
 
 Run with debug logging:
@@ -396,6 +379,12 @@ Format files from a Codex hook payload on stdin:
 
 ```sh
 format --log-level debug hook codex
+```
+
+Format files from a Claude Code hook payload on stdin:
+
+```sh
+format --log-level debug hook claude
 ```
 
 Format files from raw apply-patch text on stdin:

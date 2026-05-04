@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"time"
 )
 
 // HookInputParser extracts edited files and metadata from a hook payload.
@@ -42,9 +43,13 @@ func FormatHook(ctx context.Context, logger *slog.Logger, reader io.Reader, conf
 
 	logger = configuredLogger.Logger
 	logger.Debug("Hook payload parsed", slog.String("sessionID", input.SessionID), slog.Int("editedFileCount", len(input.Files)), slog.Any("editedFiles", input.Files))
+
+	startedAt := time.Now()
 	if err := FormatFiles(ctx, logger, configPath, input.Files); err != nil {
+		logger.Info("Hook completed", slog.String("status", "failed"), slog.Duration("duration", time.Since(startedAt)), slog.Int("editedFileCount", len(input.Files)))
 		return configuredLogger, err
 	}
+	logger.Info("Hook completed", slog.String("status", "completed"), slog.Duration("duration", time.Since(startedAt)), slog.Int("editedFileCount", len(input.Files)))
 
 	return configuredLogger, nil
 }
