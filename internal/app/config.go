@@ -21,12 +21,12 @@ const ConfigFlagName = "config"
 // GlobalConfigPath returns the per-user config file path searched after the
 // project-local config path when no explicit config path is provided.
 func GlobalConfigPath() (string, error) {
-	configDir, err := os.UserConfigDir()
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return "", fmt.Errorf("[in app.GlobalConfigPath] locate user config directory so global config can be searched: %w", err)
+		return "", fmt.Errorf("[in app.GlobalConfigPath] locate user home directory so global config can be searched in ~/.format: %w", err)
 	}
 
-	return filepath.Join(configDir, "format", DefaultConfigPath), nil
+	return filepath.Join(homeDir, ".format", DefaultConfigPath), nil
 }
 
 // ErrInvalidConfig is returned when a format configuration is structurally
@@ -44,11 +44,6 @@ type Config struct {
 
 	// Version is the configuration schema version.
 	Version int `json:"version" validate:"gt=0"`
-
-	// MatchPolicy controls how formatter matches are applied. It defaults to
-	// "first" so formatter order is respected when patterns overlap. Use "all"
-	// to run every matching formatter.
-	MatchPolicy string `json:"matchPolicy" validate:"omitempty,oneof=all first"`
 
 	// Exclude contains global glob patterns that should be ignored before any
 	// formatter-specific matching is performed.
@@ -134,7 +129,12 @@ func LoadConfigForPath(path string) (*Config, string, error) {
 		return nil, "", fmt.Errorf("[in app.LoadConfigForPath] load config %q selected by default search order: %w", candidate, err)
 	}
 
-	return nil, "", fmt.Errorf("[in app.LoadConfigForPath] find config in default search paths %v: %w", paths, errors.Join(loadErrors...))
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, "", fmt.Errorf("[in app.LoadConfigForPath] get current working directory after config lookup failed: %w", err)
+	}
+
+	return nil, "", fmt.Errorf("[in app.LoadConfigForPath] no format config found; looked for %q relative to current working directory %q, then global config %q; pass --config to use a specific config file: %w", DefaultConfigPath, wd, globalPath, errors.Join(loadErrors...))
 }
 
 // LoadConfig loads and validates a format configuration from path.

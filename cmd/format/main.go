@@ -46,7 +46,7 @@ func main() {
 		return app.Format(loggerConfig.Logger)(ctx, cmd)
 	}
 
-	hookAction := func(parser app.HookInputParser, defaultLogToFile bool) func(context.Context, *cli.Command) error {
+	hookAction := func(parser app.HookInputParser, defaultLogToFile bool, defaultRunner string) func(context.Context, *cli.Command) error {
 		return func(ctx context.Context, cmd *cli.Command) error {
 			loggerFactory := func(input app.HookInput) (*app.LoggerConfig, error) {
 				if !defaultLogToFile || cmd.IsSet("log-file") {
@@ -68,7 +68,7 @@ func main() {
 
 				runner := cmd.String("log-runner")
 				if runner == "" && os.Getenv("FORMAT_RUNNER") == "" {
-					runner = "codex"
+					runner = defaultRunner
 				}
 				metadata := app.ResolveLogMetadata(cmd.String("log-project"), runner, sessionID)
 				return app.ConfigureFileLoggerWithMetadata(app.GeneratedLogFileName(metadata), level, metadata)
@@ -88,7 +88,7 @@ func main() {
 		hookCommands = append(hookCommands, &cli.Command{
 			Name:   spec.Name,
 			Usage:  spec.Usage,
-			Action: hookAction(spec.Parser, spec.DefaultLogToFile),
+			Action: hookAction(spec.Parser, spec.DefaultLogToFile, spec.DefaultRunner),
 		})
 	}
 
@@ -99,7 +99,7 @@ func main() {
 			&cli.StringFlag{
 				Name:    app.ConfigFlagName,
 				Aliases: []string{"c"},
-				Usage:   "path to config file; defaults to ./format.json, then user config directory",
+				Usage:   "path to config file; defaults to ./format.json, then ~/.format/format.json",
 			},
 			&cli.StringFlag{
 				Name:  "log-level",

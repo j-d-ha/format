@@ -6,6 +6,7 @@ type HookSpec struct {
 	Usage            string
 	Parser           HookInputParser
 	DefaultLogToFile bool
+	DefaultRunner    string
 }
 
 // HookSpecs returns supported agent harness hook command definitions.
@@ -16,6 +17,14 @@ func HookSpecs() []HookSpec {
 			Usage:            "Read Codex hook JSON from stdin and format edited files; logs to file by default",
 			Parser:           ParseCodexHookInput,
 			DefaultLogToFile: true,
+			DefaultRunner:    "codex",
+		},
+		{
+			Name:             "claude",
+			Usage:            "Read Claude Code hook JSON from stdin and format edited files; logs to file by default",
+			Parser:           ParseClaudeHookInput,
+			DefaultLogToFile: true,
+			DefaultRunner:    "claude",
 		},
 		{
 			Name:   "apply-patch",

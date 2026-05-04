@@ -4,42 +4,86 @@
 
 It is useful when a project contains multiple languages and you want one command to run the right formatter for each file you pass in.
 
-## Pi global auto-format extension
-
-This repository includes a Pi extension that formats files after Pi edits them with `write` or `edit`.
-
-Install globally:
+## Install
 
 ```sh
-mkdir -p ~/.pi/agent/extensions
-cp pi/format-extension.ts ~/.pi/agent/extensions/format.ts
+go install github.com/j-d-ha/format/cmd/format@latest
 ```
 
-Reload Pi with `/reload`, or restart Pi. The extension calls:
+Make sure your Go bin directory is on `PATH`:
 
 ```sh
-format --log-level debug --log-to-file --log-session-id <pi-session-id> files <edited-files...>
+export PATH="$(go env GOPATH)/bin:$PATH"
 ```
 
-Optional environment variables:
+Then add a project-local `format.json` or user config at `~/.format/format.json`.
 
-```sh
-PI_FORMAT_COMMAND=/path/to/format PI_FORMAT_DEBOUNCE_MS=1000 PI_FORMAT_LOG_LEVEL=info pi
-PI_FORMAT_LOG_FILE=/tmp/pi-format.log pi
+## Claude Code hook setup
+
+Enable auto-formatting after Claude Code file edits by adding a project-local `PostToolUse` hook.
+
+Create or update `.claude/settings.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "format hook claude"
+          }
+        ]
+      }
+    ]
+  }
+}
 ```
 
-Manual flush / explicit format inside Pi:
+Restart Claude Code, or reload settings. Make sure `format` is installed and on `PATH` for Claude Code. If Claude Code cannot resolve shell profile changes, use an absolute command path such as `/Users/me/go/bin/format hook claude`.
 
-```text
-/format
-/format README.md internal/app/format.go
+## Codex hook setup
+
+Enable Codex hooks, then add a project-local `PostToolUse` hook for `apply_patch` edits.
+
+Create or update `.codex/config.toml`:
+
+```toml
+[features]
+codex_hooks = true
 ```
+
+Create or update `.codex/hooks.json`:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "^apply_patch$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "format hook codex",
+            "timeout": 30,
+            "statusMessage": "Formatting edited files"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Restart Codex after changing hook config. Trust project `.codex/` config when prompted. Make sure `format` is installed and on `PATH` for Codex.
 
 ## Usage
 
 ```text
 NAME:
-   format - Format source code
+   format - Format source files
 
 USAGE:
    format [global options] [command [command options]]
@@ -50,14 +94,14 @@ COMMANDS:
    help, h  Shows a list of commands or help for one command
 
 GLOBAL OPTIONS:
-   --config string, -c string  path to a config file; defaults to ./format.json, then the user config directory
+   --config string, -c string  path to config file; defaults to ./format.json, then ~/.format/format.json
    --log-level string          minimum log level to write (debug, info, warn, error) (default: "warn")
-   --log-project string        project name to include in generated log file paths
-   --log-runner string         runner name to include in generated log file paths
-   --log-session-id string     session identifier to include in generated log file names
+   --log-project string        project name to include in generated log file paths; defaults to FORMAT_PROJECT, git root name, then cwd name
+   --log-runner string         runner name to include in generated log file paths; defaults to FORMAT_RUNNER, then cli
+   --log-session-id string     session identifier to include in generated log file names; defaults to FORMAT_SESSION_ID, then timestamp-pid
    --help, -h                  show help
-   --log-to-file               write logs to a generated log file
-   --log-file string           write logs to the specified file path
+   --log-to-file               write logs to generated log file
+   --log-file string           write logs to specified file path
 ```
 
 Pass files as positional arguments with either the root command or the explicit `files` subcommand:
@@ -87,6 +131,7 @@ Currently supported:
 
 ```sh
 format hook codex
+format hook claude
 format hook apply-patch
 ```
 
@@ -134,6 +179,40 @@ format --log-level debug hook codex
 
 If `stdin` is empty or no edited files are found, command exits successfully without running formatters.
 
+#### `format hook claude`
+
+Reads Claude Code hook JSON from `stdin`, extracts:
+
+- `session_id` for generated log file names
+- `tool_input.file_path` for edited files from `Write`, `Edit`, and `MultiEdit`
+- `tool_input.notebook_path` for edited notebooks from `NotebookEdit`
+
+Example `.claude/settings.json` hook command:
+
+```json
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "format hook claude"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Claude hook logging defaults to generated file logs even when `--log-to-file` is not passed. If `session_id` is present, log path becomes:
+
+```text
+~/Library/Logs/format/<project>/claude/format-<session_id>.log
+```
+
 #### `format hook apply-patch`
 
 Reads raw apply-patch text from `stdin`, extracts edited files from the same patch headers, and formats those files.
@@ -154,7 +233,7 @@ format --log-file ./logs/patch-format.log hook apply-patch
 By default, `format` searches for configuration in this order:
 
 1. `./format.json`
-2. the user config directory at `format/format.json`
+2. `~/.format/format.json`
 
 You can also pass an explicit config file:
 
@@ -169,7 +248,6 @@ A config file contains global excludes and an ordered list of formatter definiti
 ```json
 {
   "version": 1,
-  "matchPolicy": "first",
   "exclude": [".git/**", "node_modules/**", "dist/**", "build/**"],
   "workingDirectory": ".",
   "formatters": [
@@ -191,9 +269,7 @@ A config file contains global excludes and an ordered list of formatter definiti
 ### Fields
 
 - `version`: configuration schema version. Must be greater than `0`.
-- `matchPolicy`: controls formatter matching behavior. Defaults to `first` when omitted:
-  - `first`: run only the first matching formatter for each file. Formatter order in `format.json` matters. If `*/docs/*.md` appears before `**/*.md`, then `site/docs/guide.md` runs only the `*/docs/*.md` formatter.
-  - `all`: run every formatter whose patterns match a file.
+- Formatter order matters. Each file is handled by the first formatter whose `patterns` match it.
 - `exclude`: global glob patterns to skip before formatter matching.
 - `workingDirectory`: default process working directory for formatter commands. If omitted, the current working directory used to launch `format` is used. Relative paths are resolved from that same current working directory.
 - `formatters`: ordered formatter definitions.
@@ -230,7 +306,6 @@ To enable schema support in a config file, add a `$schema` property that points 
 {
   "$schema": "https://raw.githubusercontent.com/j-d-ha/format/main/format.schema.json",
   "version": 1,
-  "matchPolicy": "first",
   "formatters": [
     {
       "name": "gofmt",
@@ -255,7 +330,7 @@ format files internal/app/format.go README.md
 Use a custom config file:
 
 ```sh
-format -c ./format.json ./cmd/cli/main.go
+format -c ./format.json ./cmd/format/main.go
 ```
 
 Run with debug logging:
@@ -300,6 +375,12 @@ Format files from a Codex hook payload on stdin:
 
 ```sh
 format --log-level debug hook codex
+```
+
+Format files from a Claude Code hook payload on stdin:
+
+```sh
+format --log-level debug hook claude
 ```
 
 Format files from raw apply-patch text on stdin:

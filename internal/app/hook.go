@@ -39,6 +39,28 @@ func ParseCodexHookInput(raw []byte) (HookInput, error) {
 	}, nil
 }
 
+// ParseClaudeHookInput extracts edited file paths and session metadata from a
+// Claude Code hook JSON payload.
+func ParseClaudeHookInput(raw []byte) (HookInput, error) {
+	var payload struct {
+		SessionID string `json:"session_id"`
+		ToolInput struct {
+			FilePath     string `json:"file_path"`
+			NotebookPath string `json:"notebook_path"`
+		} `json:"tool_input"`
+	}
+
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return HookInput{}, fmt.Errorf("[in app.ParseClaudeHookInput] decode claude hook JSON before extracting edited files and session metadata: %w", err)
+	}
+
+	files := uniqueNonEmptyStrings(payload.ToolInput.FilePath, payload.ToolInput.NotebookPath)
+	return HookInput{
+		Files:     files,
+		SessionID: strings.TrimSpace(payload.SessionID),
+	}, nil
+}
+
 // ParseApplyPatchEditedFiles extracts file paths from apply_patch command text.
 func ParseApplyPatchEditedFiles(command string) []string {
 	files := make([]string, 0)
@@ -64,4 +86,26 @@ func ParseApplyPatchEditedFiles(command string) []string {
 	}
 
 	return files
+}
+
+// uniqueNonEmptyStrings returns input strings with whitespace trimmed, empty
+// values removed, and duplicate values omitted while preserving first-seen order.
+func uniqueNonEmptyStrings(values ...string) []string {
+	result := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+
+		seen[value] = struct{}{}
+		result = append(result, value)
+	}
+
+	return result
 }

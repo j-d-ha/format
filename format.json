@@ -1,7 +1,6 @@
 {
   "$schema": "./format.schema.json",
   "version": 1,
-  "matchPolicy": "first",
   "exclude": [
     ".git/**",
     "node_modules/**",
@@ -19,6 +18,7 @@
         "**/*.jsx",
         "**/*.tsx",
         "**/*.json",
+        "**/*.jsonc",
         "**/*.md",
         "**/*.yaml",
         "**/*.yml"
@@ -46,42 +46,41 @@
       ]
     },
     {
-      "name": "dotnet-format",
+      "name": "mdformat mkdocs",
       "patterns": [
-        "**/*.cs"
+        "docs/**/*.md"
       ],
       "exclude": [
-        "**/*.g.cs",
-        "**/Generated/**/*.cs"
+        ".agents/**",
+        ".claude/**"
       ],
       "command": [
-        "dotnet",
-        "format",
-        "--include",
+        "uvx",
+        "--with=mdformat-mkdocs",
+        "--with=mdformat-front-matters",
+        "--with=mdformat-tables",
+        "mdformat",
+        "--number",
         "$FILES"
       ]
     },
     {
-      "name": "rustfmt",
+      "name": "mdformat github markdown",
       "patterns": [
-        "**/*.rs"
+        "**/*.md"
+      ],
+      "exclude": [
+        "docs/**/*.md",
+        ".agents/**",
+        ".claude/**"
       ],
       "command": [
-        "rustfmt",
-        "$FILES"
-      ]
-    },
-    {
-      "name": "clang-format",
-      "patterns": [
-        "**/*.c",
-        "**/*.h",
-        "**/*.cpp",
-        "**/*.hpp"
-      ],
-      "command": [
-        "clang-format",
-        "-i",
+        "uvx",
+        "--with=mdformat-gfm",
+        "--with=mdformat-front-matters",
+        "--with=mdformat-tables",
+        "mdformat",
+        "--number",
         "$FILES"
       ]
     }
