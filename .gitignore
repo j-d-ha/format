@@ -40,3 +40,6 @@ go.work
 go.work.sum
 *.pprof
 testdata
+
+
+**/AGENTS.local.md

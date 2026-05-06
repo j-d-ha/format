@@ -25,6 +25,7 @@ const (
 	envLogRunner         = "FORMAT_RUNNER"
 	envLogSessionID      = "FORMAT_SESSION_ID"
 	envLogDir            = "FORMAT_LOG_DIR"
+	envLogLevel          = "FORMAT_LOG_LEVEL"
 )
 
 // LogMetadata describes generated log file identity and routing fields.
@@ -56,7 +57,7 @@ func NewLoggerWithLevel(w io.Writer, level slog.Level) *slog.Logger {
 
 // ConfigureLogger creates a logger from the log-related CLI flags.
 func ConfigureLogger(cmd *cli.Command) (*LoggerConfig, error) {
-	level, err := ParseLogLevel(cmd.String("log-level"))
+	level, err := ResolveLogLevel(cmd.String("log-level"), cmd.IsSet("log-level"))
 	if err != nil {
 		return nil, fmt.Errorf("[in app.ConfigureLogger] parse log level so command logs can be filtered: %w", err)
 	}
@@ -237,7 +238,17 @@ func sanitizeLogFilePart(part string) string {
 	return builder.String()
 }
 
-// ParseLogLevel converts a CLI log level string into an slog level.
+// ResolveLogLevel resolves the log level from an explicit flag value,
+// FORMAT_LOG_LEVEL, then the default warning level.
+func ResolveLogLevel(flagValue string, flagSet bool) (slog.Level, error) {
+	if flagSet {
+		return ParseLogLevel(flagValue)
+	}
+
+	return ParseLogLevel(firstNonEmpty(os.Getenv(envLogLevel), flagValue, "warn"))
+}
+
+// ParseLogLevel converts a log level string into an slog level.
 func ParseLogLevel(raw string) (slog.Level, error) {
 	switch strings.ToLower(strings.TrimSpace(raw)) {
 	case "", "warn", "warning":

@@ -95,7 +95,7 @@ COMMANDS:
 
 GLOBAL OPTIONS:
    --config string, -c string  path to config file; defaults to ./format.json, then ~/.format/format.json
-   --log-level string          minimum log level to write (debug, info, warn, error) (default: "warn")
+   --log-level string          minimum log level to write (debug, info, warn, error); defaults to FORMAT_LOG_LEVEL, then warn (default: "warn")
    --log-project string        project name to include in generated log file paths; defaults to FORMAT_PROJECT, git root name, then cwd name
    --log-runner string         runner name to include in generated log file paths; defaults to FORMAT_RUNNER, then cli
    --log-session-id string     session identifier to include in generated log file names; defaults to FORMAT_SESSION_ID, then timestamp-pid
@@ -339,6 +339,8 @@ Run with debug logging:
 format --log-level debug main.go
 ```
 
+Set default log level with `FORMAT_LOG_LEVEL`; `--log-level` overrides it. If neither is set, log level defaults to `warn`.
+
 Write logs to a generated log file:
 
 ```sh
@@ -391,7 +393,7 @@ format hook apply-patch
 
 ## Logging
 
-The default log level is `warn`.
+The default log level is `warn`. Set `FORMAT_LOG_LEVEL` to change the default for a shell or hook environment. An explicit `--log-level` flag takes precedence over `FORMAT_LOG_LEVEL`.
 
 Supported log levels are:
 
@@ -400,7 +402,7 @@ Supported log levels are:
 - `warn`
 - `error`
 
-Use `--log-level info` to see high-level progress: config loaded, file matching summary, selected formatters, formatter completion, and total duration. Use `--log-level debug` when troubleshooting matching or command invocation; debug logs include config search paths, original CLI arguments, per-file match decisions, full formatter argv, and captured formatter stdout/stderr.
+Use `--log-level info` or `FORMAT_LOG_LEVEL=info` to see high-level progress: config loaded, file matching summary, selected formatters, formatter completion, and total duration. Use `--log-level debug` or `FORMAT_LOG_LEVEL=debug` when troubleshooting matching or command invocation; debug logs include config search paths, original CLI arguments, per-file match decisions, full formatter argv, and captured formatter stdout/stderr.
 
 Use `--log-to-file` to write logs to a generated log file, or `--log-file` to choose the exact path. These two flags are mutually exclusive. Generated log records include `project`, `runner`, `sessionID`, `cwd`, and `gitRoot` when available.
 

@@ -56,7 +56,7 @@ func main() {
 					return loggerConfig, nil
 				}
 
-				level, err := app.ParseLogLevel(cmd.String("log-level"))
+				level, err := app.ResolveLogLevel(cmd.String("log-level"), cmd.IsSet("log-level"))
 				if err != nil {
 					return nil, fmt.Errorf("[in main.main] parse log level before enabling hook file logging: %w", err)
 				}
@@ -103,7 +103,7 @@ func main() {
 			},
 			&cli.StringFlag{
 				Name:  "log-level",
-				Usage: "minimum log level to write (debug, info, warn, error)",
+				Usage: "minimum log level to write (debug, info, warn, error); defaults to FORMAT_LOG_LEVEL, then warn",
 				Value: "warn",
 			},
 			&cli.StringFlag{
