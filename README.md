@@ -339,6 +339,8 @@ Run with debug logging:
 format --log-level debug main.go
 ```
 
+Set default log level with `FORMAT_LOG_LEVEL`; `--log-level` overrides it. If neither is set, log level defaults to `warn`.
+
 Write logs to a generated log file:
 
 ```sh
